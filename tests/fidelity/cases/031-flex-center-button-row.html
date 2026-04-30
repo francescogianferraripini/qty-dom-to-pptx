@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>flex-center-button-row</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #ffffff; }
+  #target {
+    width: 960px;
+    height: 540px;
+    box-sizing: border-box;
+    padding: 56px;
+    background: #ffffff;
+    font-family: Arial, sans-serif;
+  }
+  /* A button row with `display: flex; align-items: center` on each tall
+     button. Without Phase 1.3 the buttons collapse to text height because
+     pptxgenjs's `autoFit: true` resizes the shape down to fit the run.
+     Validates that flex-centered text containers preserve their declared
+     height and stay center-anchored. */
+  .row { display: flex; gap: 16px; }
+  .btn {
+    flex: 1;
+    height: 120px;
+    border-radius: 12px;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    font-weight: 700;
+  }
+  .one { background: #1976d2; }
+  .two { background: #388e3c; }
+  .three { background: #f57c00; }
+  .four { background: #7b1fa2; }
+</style>
+</head>
+<body>
+  <div id="target">
+    <div class="row" style="margin-bottom: 24px;">
+      <div class="btn one">PRIMARY</div>
+      <div class="btn two">SECONDARY</div>
+    </div>
+    <div class="row">
+      <div class="btn three">TERTIARY</div>
+      <div class="btn four">QUATERNARY</div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>flex-end-alignment</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #ffffff; }
+  #target {
+    width: 960px;
+    height: 540px;
+    box-sizing: border-box;
+    padding: 48px;
+    background: #ffffff;
+    font-family: Arial, sans-serif;
+  }
+  /* Right- and bottom-aligned text inside fixed-size flex boxes. The
+     engine had `justify-content: center` wired but `flex-end` / `end`
+     were dropped on the floor, and `align-items: flex-end` did nothing.
+     This case exercises both axes with non-center end keywords. */
+  .row {
+    display: flex;
+    gap: 18px;
+    margin-bottom: 24px;
+    height: 140px;
+  }
+  .tile {
+    flex: 1;
+    border-radius: 10px;
+    color: #fff;
+    font-size: 20px;
+    font-weight: 700;
+    display: flex;
+    padding: 16px;
+    box-sizing: border-box;
+  }
+  .endRight { background: #1565c0; justify-content: flex-end; align-items: center; }
+  .endBottom { background: #2e7d32; justify-content: flex-start; align-items: flex-end; }
+  .endBoth { background: #6a1b9a; justify-content: flex-end; align-items: flex-end; }
+  /* CSS Logical-property keywords `start`/`end` should also map. */
+  .endLogical { background: #ef6c00; justify-content: end; align-items: end; }
+</style>
+</head>
+<body>
+  <div id="target">
+    <div class="row">
+      <div class="tile endRight">RIGHT-MIDDLE</div>
+      <div class="tile endBottom">LEFT-BOTTOM</div>
+    </div>
+    <div class="row">
+      <div class="tile endBoth">RIGHT-BOTTOM</div>
+      <div class="tile endLogical">END-END</div>
+    </div>
+  </div>
+</body>
+</html>

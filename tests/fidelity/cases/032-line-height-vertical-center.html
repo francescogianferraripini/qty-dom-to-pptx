@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>line-height-vertical-center</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #ffffff; }
+  #target {
+    width: 960px;
+    height: 540px;
+    box-sizing: border-box;
+    padding: 56px;
+    background: #ffffff;
+    font-family: Arial, sans-serif;
+  }
+  /* The legacy "tall button label" pattern: a fixed-height bar that
+     vertically centers its single-line label by setting `line-height`
+     equal to the bar height. No flex anywhere. The engine's text-rect
+     read returns a rect at the top of the line-box, so without Phase 1.3
+     the labels render top-aligned inside a too-tall bar — or, with
+     autoFit on, the bar collapses to font-size height. */
+  .strip {
+    height: 80px;
+    line-height: 80px;
+    font-size: 24px;
+    font-weight: 700;
+    color: #fff;
+    text-align: center;
+    border-radius: 8px;
+    margin-bottom: 18px;
+  }
+  .a { background: #0d47a1; }
+  .b { background: #2e7d32; }
+  .c { background: #c62828; }
+
+  /* Same trick on a left-aligned label with horizontal padding to ensure
+     padding doesn't get clobbered by the alignment readout. */
+  .stripLeft {
+    height: 64px;
+    line-height: 64px;
+    font-size: 18px;
+    color: #1f1f1f;
+    background: #ffe0b2;
+    border-radius: 6px;
+    padding: 0 24px;
+    box-sizing: border-box;
+  }
+</style>
+</head>
+<body>
+  <div id="target">
+    <div class="strip a">SYSTEM HEALTH — NOMINAL</div>
+    <div class="strip b">DEPLOY READY</div>
+    <div class="strip c">INCIDENT IN PROGRESS</div>
+    <div class="stripLeft">Last sync: 4 minutes ago</div>
+  </div>
+</body>
+</html>

@@ -111,7 +111,7 @@ Two of the "still TODO" items above shipped together:
 
 - Render-queue snapshot tests for a fixture DOM (the plan calls for these, but `prepareRenderItem` builds the queue inside `processSlide` and doesn't currently expose it for inspection — needs a small testing seam).
 - A CI wrapper that fails if any case's `contentPercent` increases >1pt vs. the previous main.
-- ~~Grow the synthetic corpus from 14 → ~30 cases as Phases 2–3 land.~~ ✅ landed (cases 020–030; 30 synthetic + 32 quantyca = 61 total). Six new cases pass clean as regression guards (024 rgba/hex8/hsla, 025 oklch sRGB-clip, 026 transform-translate, 027 leaf transform-scale, 028 isolated transform-origin); five flag known engine gaps under the 85% budget — 020 multi-shadow-stack at 58% (Phase 2.1), 021 inset-shadow at 66% (Phase 2.2), 022 outline-stroke at 81% (Phase 2.3, tightest headroom), 023 transparent-border at 32% (Phase 2.4), 029/030 elliptical & per-corner radius at ~22% (Phase 3.3). Two unrelated engine bugs surfaced and were sidestepped via case redesign rather than fixed: `display: flex` text-containers collapse height (caused initial 025/027 failures), and `line-height`-based vertical text centering doesn't translate. Both worth a Phase 1 follow-up case + fix when convenient.
+- ~~Grow the synthetic corpus from 14 → ~30 cases as Phases 2–3 land.~~ ✅ landed (cases 020–030; 30 synthetic + 32 quantyca = 61 total). Six new cases pass clean as regression guards (024 rgba/hex8/hsla, 025 oklch sRGB-clip, 026 transform-translate, 027 leaf transform-scale, 028 isolated transform-origin); five flag known engine gaps under the 85% budget — 020 multi-shadow-stack at 58% (Phase 2.1), 021 inset-shadow at 66% (Phase 2.2), 022 outline-stroke at 81% (Phase 2.3, tightest headroom), 023 transparent-border at 32% (Phase 2.4), 029/030 elliptical & per-corner radius at ~22% (Phase 3.3). Two unrelated engine bugs surfaced and were sidestepped via case redesign rather than fixed: `display: flex` text-containers collapse height (caused initial 025/027 failures), and `line-height`-based vertical text centering doesn't translate. Both pulled into Phase 1.3 below.
 
 **Phase 1.1 re-validation + opacity:0 skip ✅ landed**
 
@@ -190,6 +190,50 @@ All four pass at ≤52% content delta with the standard 85% budget; visual outpu
 The remaining stubborn cluster (q-08, q-09, q-19–22, q-27) is dominated by code-block syntax highlighting (`<pre><code>` + hljs spans) which the engine doesn't render natively — Phase 9 territory. 011-pseudo-after-underline now lands at 37% content delta (was passing lower previously) — the new accent-bar render adds edge density that the metric counts even though the underline visually matches.
 
 All 50 cases pass under the 65% Quantyca budget / 85% default budget.
+
+---
+
+## Phase 1.3 — Flex/grid alignment readout ✅ landed
+
+**Root cause turned out to be `autoFit: true`, not the alignment readout.** The pre-1.3 code already read `style.alignItems === 'center'` → `valign='middle'` and `style.justifyContent === 'center'` (with `display:flex`) → `align='center'`. The values were correct. The bug was that every text shape was emitted with `autoFit: true`, which pptxgenjs translates to `<a:spAutoFit/>` ("resize shape to fit text"). For a 472×120 flex tile containing one short word, PowerPoint shrunk the shape down to ~30px so the text filled it — the alignment was right, the box was just gone. Case 007's ~70% content delta was almost entirely this collapse.
+
+**What shipped (`src/utils.js` + `src/index.js`):**
+
+1. **`resolveContainerAlignment(style, widthPx, heightPx)` in utils.js.** Single read site that returns `{align, valign, intentionalSize}`:
+   - For `display: flex` / `inline-flex`, decompose by `flex-direction`: row maps `justify-content` → main-axis (horizontal) and `align-items` → cross-axis (vertical); column swaps them. Honors `flex-start` / `flex-end` / `start` / `end` / `center` (the prior code only matched `center`).
+   - For `display: grid` / `inline-grid`, prefer item-axis (`align-items` / `justify-items`), fall back to track-axis (`align-content` / `justify-content`). This handles both `place-items: center` and `place-content: center` on a single-text grid item without forking the resolution.
+   - The `place-items` / `place-content` shorthands resolve at computed-style time to their long-hands, so reading `alignItems` / `justifyItems` / `alignContent` / `justifyContent` directly is enough (no manual shorthand split).
+   - Line-height-based vertical centering: when `line-height > font-size × 1.4` AND the element's height ≈ its line-height (within 5%), emit `valign: 'middle'`. Catches the legacy "tall button label" pattern with `height: 80px; line-height: 80px; font-size: 24px`.
+   - `text-align: start` / `end` resolve to `left` / `right`; non-flex/grid elements still use `text-align` for horizontal placement.
+   - Returns `intentionalSize: true` whenever any flex/grid alignment branch fired or line-height vcenter triggered. The old `Math.abs(paddingTop - paddingBottom) < 2 → valign='middle'` heuristic was dropped — it fired on virtually every element (most have pt=pb=0), which only "worked" because `autoFit: true` collapsed the shape so valign didn't matter visually.
+
+2. **Disable `autoFit` when the box is intentionally sized.** Both text-shape dispatch sites in `prepareRenderItem` (the bg-image branch and the standard fill+text branch) now emit `autoFit: !textPayload.intentionalSize`. With `autoFit: false`, pptxgenjs omits `<a:spAutoFit/>` so the shape keeps its declared `w` / `h`. For block-level text (paragraphs, headings) with no flex/grid alignment, `intentionalSize` stays false and `autoFit: true` continues to collapse-to-text as before — the height of an auto-sized text block already matches its content, so no visual change.
+
+**Validation cases landed (`tests/fidelity/cases/`)**
+
+- `031-flex-center-button-row` — four 120-px-tall flex tiles with `align-items: center; justify-content: center`. The Phase 1.3 regression guard for case 007 (which is also promoted from "documented defect" to passing).
+- `032-line-height-vertical-center` — three solid bars using `height: 80px; line-height: 80px` and a `padding: 0 24px; line-height: 64px` left-aligned strip. Exercises the line-height vcenter detector and confirms left-aligned content with horizontal padding still survives.
+- `033-place-items-grid` — outer grid with `place-items: center`, cells with `display: grid; place-content: center`. Exercises the `align-content` / `justify-content` fallback for grid items whose `align-items` / `justify-items` are at `normal`.
+- `034-flex-end-alignment` — four tiles exercising every non-center keyword combination: `flex-end` + `flex-start`, `flex-start` + `flex-end`, `flex-end` + `flex-end`, and the logical `end` / `end` shorthand. Confirms each maps to the right PPTX `align` / `valign` pair.
+- `035-flex-column-distributed` — three columns (`flex-direction: column`) with `top-center`, `center-stretch`, and `bottom-end` distributions. Confirms the row→column axis swap.
+
+**Score snapshot (66 cases, all passing)**
+
+| case | before | after | notes |
+|---|---|---|---|
+| 007-flex-layout | ~70% | **5.93%** | promoted from "documented defect" to regression guard |
+| 031-flex-center-button-row | new | 8.12% | Phase 1.3 regression guard |
+| 032-line-height-vertical-center | new | 44.88% | passes; residual delta is sub-pixel anti-alias edges from larger rendered chrome — visual diff matches |
+| 033-place-items-grid | new | 4.77% | clean |
+| 034-flex-end-alignment | new | 22.33% | passes; right/bottom alignment all correct |
+| 035-flex-column-distributed | new | 18.93% | passes; column-axis swap working |
+
+The Quantyca canary held within ±0.1pt across all 32 slides — Phase 1.3 doesn't change behavior for non-centered text, so text-only slides see no movement, and the small handful of flex-centered slides in the deck (mostly headers) were already in the noise. Bigger wins will come once Phase 2's color/shadow/border work and Phase 4's gradient parser land.
+
+**Out of scope.**
+- `align-self` / `justify-self` overrides on individual flex/grid children (rare in practice; can be added if a case surfaces).
+- `text-align: justify` falls back to `left` (PPTX has `align: 'justify'` but it's a different visual model — leave for Phase 5 text-richness).
+- `align-content` on a multi-line flex container with `flex-wrap: wrap` (the canary doesn't use this; punt until needed).
 
 ---
 
@@ -299,7 +343,7 @@ These aren't standalone tasks but should land *with* the phase that first needs 
 
 ## Suggested sequencing
 
-Phases 0, 1, 1.1 re-validation, 1.2, and the opacity:0 skip have shipped. Next up is Phase 2 (color/shadow/border primitives) and the *minimal* Phase 9 (generalized rasterization fallback behind a `shouldRasterize` predicate).
+Phases 0, 1, 1.1 re-validation, 1.2, the opacity:0 skip, and Phase 1.3 have shipped. Next up is Phase 2 (color/shadow/border primitives) and the *minimal* Phase 9 (generalized rasterization fallback behind a `shouldRasterize` predicate).
 
 | Order | Phase / item | Why this slot |
 |---|---|---|
@@ -311,6 +355,7 @@ Phases 0, 1, 1.1 re-validation, 1.2, and the opacity:0 skip have shipped. Next u
 | 6 | Phase 1.1 re-validation + `opacity: 0` skip ✅ | offsetWidth × styleScale fixed case 010; opacity skip in UL/text-container/collectTextParts dropped q-08 by ~21pt |
 | 6.5 | Harness: serve cases via local HTTP server ✅ | `127.0.0.1:8001` static server replaces file://; SVG icons + url-background pseudos now round-trip cleanly |
 | 6.6 | Phase 0 addendum — synthetic corpus 19 → 30 ✅ | Cases 020–030 cover Phase 2/3 territory; six clean regression guards, five flag known gaps with 4–66pt budget headroom |
+| 6.7 | Phase 1.3 — flex/grid alignment readout ✅ | Root cause was `autoFit: true` collapsing the shape, not the alignment readout. Disabling autoFit when flex/grid alignment is detected dropped case 007 from ~70% → 5.93%; line-height vcenter detector + grid `place-content` fallback shipped alongside |
 | 7 | 2 (color/shadow/border) | Visible on most decks; isolated changes |
 | 8 | 9 (rasterization escape hatch, *minimal*) | Unblocks "ship something acceptable for unsupported CSS" |
 | 9 | 4 (gradients/backgrounds) | Common, currently silently dropped |

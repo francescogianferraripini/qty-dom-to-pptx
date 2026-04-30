@@ -34,6 +34,7 @@ import {
   getAncestorScale,
   nodeOwnScale,
   measurePseudoBox,
+  resolveContainerAlignment,
 } from './utils.js';
 import { getProcessedImage } from './image-processor.js';
 
@@ -1468,21 +1469,16 @@ function prepareRenderItem(
     });
 
     if (textParts.length > 0) {
-      let align = style.textAlign || 'left';
-      if (align === 'start') align = 'left';
-      if (align === 'end') align = 'right';
-      let valign = 'top';
-      if (style.alignItems === 'center') valign = 'middle';
-      if (style.justifyContent === 'center' && style.display.includes('flex')) align = 'center';
-
-      const pt = parseFloat(style.paddingTop) || 0;
-      const pb = parseFloat(style.paddingBottom) || 0;
-      if (Math.abs(pt - pb) < 2) valign = 'middle';
+      const { align, valign, intentionalSize } = resolveContainerAlignment(
+        style,
+        widthPx,
+        heightPx
+      );
 
       let padding = getPadding(style, config.styleScale);
       if (align === 'center' && valign === 'middle') padding = [0, 0, 0, 0];
 
-      textPayload = { text: textParts, align, valign, inset: padding };
+      textPayload = { text: textParts, align, valign, inset: padding, intentionalSize };
     }
   }
 
@@ -1582,7 +1578,11 @@ function prepareRenderItem(
           rotate: rotation,
           margin: 0,
           wrap: true,
-          autoFit: true,
+          // autoFit:true emits <a:spAutoFit/> ("resize shape to fit text"),
+          // which collapses a flex/grid box back to text size. When the
+          // alignment readout flagged the box as intentionally sized,
+          // keep the declared dimensions instead.
+          autoFit: !textPayload.intentionalSize,
           vert: writingModeVert,
         },
       });
@@ -1689,7 +1689,10 @@ function prepareRenderItem(
           inset: textPayload.inset,
           margin: 0,
           wrap: true,
-          autoFit: true,
+          // See note in the bg-image branch: spAutoFit collapses the
+          // box. Disable when the alignment branch flagged the box as
+          // intentionally larger than its text.
+          autoFit: !textPayload.intentionalSize,
           vert: writingModeVert,
         };
         items.push({
