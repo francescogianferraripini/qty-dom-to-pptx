@@ -1,0 +1,1054 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>Reveal.js × Quantyca — Data, at Core</title>
+
+  <!-- Reveal.js core -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+
+  <!-- Font Awesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <!-- Custom styles -->
+  <link rel="stylesheet" href="styles.css">
+
+  <!-- Chart.js for data visualization -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="icon" type="image/png" href="assets/images/logo.png">
+</head>
+<body>
+  <div class="reveal" id="target">
+    <div class="slides">
+
+      <section id="title" class="hero no-chrome" data-transition="fade">
+        <p class="eyebrow">QUANTYCA · DECK DEMO</p>
+        <h1>Reveal.js, con stile Quantyca.</h1>
+        <p class="hero-lead">Una presentazione di esempio per mostrare cosa può fare reveal.js &mdash; sposato al nostro design system: burgundy, Poppins, linee sottili, zero fronzoli.</p>
+        <div class="hero-meta">
+          <span>DATA, AT CORE</span>
+          <span>Milano · 2026</span>
+        </div>
+        <aside class="notes">
+          Slide d'apertura. Introduci brevemente l'obiettivo: non è un pitch, è un tour delle feature.
+          Premi S per aprire le speaker notes.
+        </aside>
+      </section>
+
+      <section id="agenda">
+        <p class="eyebrow">AGENDA</p>
+        <h2>Cosa vediamo oggi</h2>
+        <div class="content">
+          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px 40px; margin-top: 12px;">
+            <div style="display: flex; gap: 18px; align-items: baseline;">
+              <span class="text-2xl text-burgundy font-bold" style="min-width: 48px;">01</span>
+              <div>
+                <h3 style="margin: 0 0 4px;">Layout &amp; struttura</h3>
+                <p class="text-muted" style="font-size: 12pt; margin: 0;">Sezioni, slide verticali, divider, multi-colonna.</p>
+              </div>
+            </div>
+            <div style="display: flex; gap: 18px; align-items: baseline;">
+              <span class="text-2xl text-burgundy font-bold" style="min-width: 48px;">02</span>
+              <div>
+                <h3 style="margin: 0 0 4px;">Contenuti interattivi</h3>
+                <p class="text-muted" style="font-size: 12pt; margin: 0;">Fragment, code highlight, chart Chart.js.</p>
+              </div>
+            </div>
+            <div style="display: flex; gap: 18px; align-items: baseline;">
+              <span class="text-2xl text-burgundy font-bold" style="min-width: 48px;">03</span>
+              <div>
+                <h3 style="margin: 0 0 4px;">Motion &amp; transizioni</h3>
+                <p class="text-muted" style="font-size: 12pt; margin: 0;">Auto-animate, background per slide, transizioni personalizzate.</p>
+              </div>
+            </div>
+            <div style="display: flex; gap: 18px; align-items: baseline;">
+              <span class="text-2xl text-burgundy font-bold" style="min-width: 48px;">04</span>
+              <div>
+                <h3 style="margin: 0 0 4px;">Produzione</h3>
+                <p class="text-muted" style="font-size: 12pt; margin: 0;">Speaker notes, export PDF, deep-link via hash.</p>
+              </div>
+            </div>
+          </div>
+          <p style="margin-top: 36px;" class="text-muted">
+            <i class="fa-solid fa-keyboard" style="margin-right: 8px; color: var(--q-burgundy);"></i>
+            Navigazione: <strong>← →</strong> orizzontale, <strong>↑ ↓</strong> verticale, <strong>Esc</strong> overview, <strong>S</strong> speaker notes, <strong>F</strong> fullscreen.
+          </p>
+        </div>
+        <div class="footnote">01 / Introduzione</div>
+      </section>
+
+      <section id="why-revealjs">
+        <p class="eyebrow">PERCHÉ REVEAL.JS</p>
+        <h2>Slide come codice. Niente build, zero vendor lock-in.</h2>
+        <div class="content">
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 8px;">
+            <div class="q-card">
+              <span class="q-icon"><i class="fa-solid fa-code"></i></span>
+              <h3>HTML &amp; CSS</h3>
+              <p>Un file HTML, un file CSS, font locali. Apri e proietta — nessun tooling richiesto.</p>
+            </div>
+            <div class="q-card tile-burgundy">
+              <span class="q-icon"><i class="fa-solid fa-layer-group"></i></span>
+              <h3>Versionabile</h3>
+              <p>Vive su Git come il resto del codice. Diff leggibili, review via PR.</p>
+            </div>
+            <div class="q-card">
+              <span class="q-icon"><i class="fa-solid fa-bolt"></i></span>
+              <h3>Estendibile</h3>
+              <p>Plugin per code highlight, chart, math, markdown, speaker view.</p>
+            </div>
+            <div class="q-card">
+              <span class="q-icon"><i class="fa-solid fa-file-pdf"></i></span>
+              <h3>Export PDF</h3>
+              <p>Stampa pixel-perfect con <code style="font-size: 12pt;">?print-pdf</code> o decktape.</p>
+            </div>
+            <div class="q-card tile-dark">
+              <span class="q-icon"><i class="fa-solid fa-link"></i></span>
+              <h3>Deep-link</h3>
+              <p>Ogni slide ha un hash URL. Condividi il link e atterri esattamente lì.</p>
+            </div>
+            <div class="q-card">
+              <span class="q-icon"><i class="fa-solid fa-universal-access"></i></span>
+              <h3>Accessibile</h3>
+              <p>Testo vero, screen-reader friendly, <code style="font-size: 12pt;">prefers-reduced-motion</code> onorato.</p>
+            </div>
+          </div>
+        </div>
+        <div class="footnote">02 / Perché reveal.js</div>
+      </section>
+
+      <section id="divider-layouts" class="section-divider" data-state="is-section-divider" data-transition="fade">
+        <p class="eyebrow">PARTE 01</p>
+        <h1>Layout &amp;<br>struttura</h1>
+        <p>Griglie, colonne, slide annidate. Tutto il layout è CSS &mdash; niente di magico.</p>
+      </section>
+
+      <section id="layout-split">
+        <p class="eyebrow">LAYOUT · DUE COLONNE</p>
+        <h2>Testo a sinistra, evidenza a destra</h2>
+        <div class="content">
+          <div class="split">
+            <div>
+              <p class="text-lg" style="font-weight: 300; line-height: 1.4;">
+                Le slide sono <strong>flex column</strong>. Dentro puoi mettere qualsiasi griglia CSS: due, tre, quattro colonne, proporzioni libere.
+              </p>
+              <ul style="margin-top: 18px;">
+                <li>Nessuna libreria layout richiesta</li>
+                <li>Tipografia gestita via CSS variable</li>
+                <li>I blocchi restano coerenti tra slide</li>
+              </ul>
+              <p style="margin-top: 28px;">
+                <a class="cta" href="#/layout-cards">Vedi la variante a card <i class="fa-solid fa-arrow-right-long"></i></a>
+              </p>
+            </div>
+            <div style="display: flex; flex-direction: column; justify-content: center; gap: 18px;">
+              <div class="stat">
+                <span class="stat-num">3×</span>
+                <span class="stat-label">Velocità di iterazione vs. slide manuali</span>
+              </div>
+              <div class="stat" style="border-left-color: var(--q-teal);">
+                <span class="stat-num" style="color: var(--q-teal);">0</span>
+                <span class="stat-label">Passi di build per pubblicare</span>
+              </div>
+              <div class="stat" style="border-left-color: var(--q-lightblue);">
+                <span class="stat-num" style="color: var(--q-lightblue);">100%</span>
+                <span class="stat-label">Contenuto indicizzabile &amp; accessibile</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="footnote">03 / Layout · due colonne</div>
+      </section>
+
+      <section id="layout-cards">
+        <p class="eyebrow">LAYOUT · CARD GRID</p>
+        <h2>Le nostre practice &mdash; sei illustrazioni, un ritmo</h2>
+        <div class="content">
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 4px;">
+            <div class="q-card">
+              <img src="assets/images/uploads/Data-Engineering.svg" alt="" style="width: 52px; height: 52px;">
+              <h3>Data Engineering</h3>
+              <p>Pipeline affidabili, governance by design, scale orizzontale.</p>
+            </div>
+            <div class="q-card">
+              <img src="assets/images/uploads/Data-Governance.svg" alt="" style="width: 52px; height: 52px;">
+              <h3>Data Governance</h3>
+              <p>Cataloghi, lineage, data contract e stewardship operativa.</p>
+            </div>
+            <div class="q-card">
+              <img src="assets/images/uploads/Data-Analytics.svg" alt="" style="width: 52px; height: 52px;">
+              <h3>Data Analytics</h3>
+              <p>Modelli semantici, self-service BI, metriche condivise.</p>
+            </div>
+            <div class="q-card">
+              <img src="assets/images/uploads/Data-Infrastructure.svg" alt="" style="width: 52px; height: 52px;">
+              <h3>Data Infrastructure</h3>
+              <p>Cloud foundation, cost control, piattaforme multi-tenant.</p>
+            </div>
+            <div class="q-card">
+              <img src="assets/images/uploads/Data-PLATFORM.svg" alt="" style="width: 52px; height: 52px;">
+              <h3>Platform Engineering</h3>
+              <p>Tooling interno per team dati: developer experience al centro.</p>
+            </div>
+            <div class="q-card">
+              <img src="assets/images/uploads/Data-Products.svg" alt="" style="width: 52px; height: 52px;">
+              <h3>Data Products</h3>
+              <p>Prodotti-dato trattati come asset: owner, SLA, roadmap.</p>
+            </div>
+          </div>
+        </div>
+        <div class="footnote">04 / Layout · card grid</div>
+      </section>
+
+      <section id="divider-interactive" class="section-divider alt" data-state="is-section-divider" data-transition="fade">
+        <p class="eyebrow">PARTE 02</p>
+        <h1>Contenuti<br>interattivi</h1>
+        <p>Reveal progressivo, codice con step, grafici che respirano.</p>
+      </section>
+
+      <section id="fragments">
+        <p class="eyebrow">FRAGMENT · REVEAL PROGRESSIVO</p>
+        <h2>Un concetto per volta &mdash; premi <span class="text-burgundy">→</span></h2>
+        <div class="content">
+          <div class="split" style="gap: 48px;">
+            <div>
+              <p class="text-muted" style="margin-bottom: 24px;">Come costruiamo un data product, passo per passo:</p>
+              <ol style="padding-left: 1.2em; font-size: 15pt; line-height: 1.8;">
+                <li class="fragment fade-right"><strong>Domain discovery</strong> &mdash; di chi è il dato?</li>
+                <li class="fragment fade-right"><strong>Contract first</strong> &mdash; schema, SLA, ownership.</li>
+                <li class="fragment fade-right"><strong>Implementation</strong> &mdash; pipeline &amp; test.</li>
+                <li class="fragment fade-right"><strong>Publish</strong> &mdash; catalogo e discoverability.</li>
+                <li class="fragment highlight-burgundy"><strong>Iterate</strong> &mdash; feedback loop continuo.</li>
+              </ol>
+            </div>
+            <div style="display: flex; flex-direction: column; justify-content: center; gap: 18px;">
+              <p class="eyebrow" style="color: var(--q-greydark); margin-bottom: 0;">ANIMAZIONI DISPONIBILI</p>
+              <div>
+                <span class="chip fragment fade-in">fade-in</span>
+                <span class="chip fragment fade-up">fade-up</span>
+                <span class="chip fragment fade-right">fade-right</span>
+                <span class="chip fragment highlight-red">highlight-red</span>
+                <span class="chip fragment strike">strike</span>
+              </div>
+              <p class="text-muted" style="font-size: 12pt; margin-top: 12px;">
+                Ogni <code style="font-size: 12pt;">class="fragment"</code> compare al click successivo. Si possono ordinare con <code style="font-size: 12pt;">data-fragment-index</code>.
+              </p>
+            </div>
+          </div>
+        </div>
+        <div class="footnote">05 / Fragment &mdash; reveal progressivo</div>
+      </section>
+
+      <section id="code-highlight">
+        <p class="eyebrow">CODE · HIGHLIGHT PROGRESSIVO</p>
+        <h2>Codice vero, focus animato linea per linea</h2>
+        <div class="content" style="padding-top: 14px;">
+          <pre><code class="language-python" data-trim data-line-numbers="1-2|4-7|9-13|15-17"><script type="text/template">
+from dagster import asset, AssetIn
+from pyspark.sql import DataFrame, functions as F
+
+@asset(group_name="bronze")
+def orders_raw(spark) -> DataFrame:
+    return (spark.read.format("delta")
+            .load("s3://quantyca-lake/orders/"))
+
+@asset(ins={"orders": AssetIn("orders_raw")})
+def orders_clean(orders: DataFrame) -> DataFrame:
+    return (orders
+            .filter(F.col("order_total") > 0)
+            .dropDuplicates(["order_id"]))
+
+@asset(group_name="gold", io_manager_key="catalog")
+def orders_by_region(orders_clean) -> DataFrame:
+    return orders_clean.groupBy("region").agg(F.sum("order_total").alias("gmv"))
+</script></code></pre>
+          <p class="text-muted" style="font-size: 10pt; margin-top: 12px;">
+            <i class="fa-solid fa-arrow-right-long" style="color: var(--q-burgundy); margin-right: 6px;"></i>
+            <code style="font-size: 10pt;">data-line-numbers="1-2|4-7|9-13|15-17"</code> &mdash; ogni <code style="font-size: 10pt;">|</code> è uno step al click.
+          </p>
+        </div>
+        <div class="footnote">06 / Code · highlight progressivo</div>
+      </section>
+
+      <section>
+        <section id="chart-bar">
+          <p class="eyebrow">CHART · BAR &mdash; slide annidata 1/3</p>
+          <h2>Adozione data product, per trimestre</h2>
+          <div class="content" style="display: flex; flex-direction: column;">
+            <div style="flex: 1; display: grid; grid-template-rows: 1fr 3fr; gap: 18px; min-height: 0; min-width: 0; padding-top: 8px;">
+              <div style="display: flex; align-items: center; background: var(--q-grey); padding: 14px 22px; border-radius: 8px; border-left: 3px solid var(--q-burgundy);">
+                <p style="margin: 0; font-size: 13pt;"><strong>+78%</strong> di data product registrati nel catalogo FY26 vs. FY25. Q4 traina grazie ai team retail.</p>
+              </div>
+              <div style="position: relative; min-height: 0; min-width: 0;">
+                <canvas data-chart="bar">
+                <!--
+                {
+                  "data": {
+                    "labels": ["Q1 FY25", "Q2 FY25", "Q3 FY25", "Q4 FY25", "Q1 FY26", "Q2 FY26", "Q3 FY26", "Q4 FY26"],
+                    "datasets": [{
+                      "label": "Data product pubblicati",
+                      "data": [12, 18, 22, 28, 34, 41, 52, 68],
+                      "backgroundColor": "#a1245a",
+                      "borderRadius": 4
+                    }]
+                  },
+                  "options": {
+                    "maintainAspectRatio": false,
+                    "plugins": { "legend": { "display": false } },
+                    "scales": { "y": { "beginAtZero": true } }
+                  }
+                }
+                -->
+                </canvas>
+              </div>
+            </div>
+          </div>
+          <div class="footnote">07 / Chart · bar &mdash; usa <span class="text-burgundy font-bold">↓</span> per scendere</div>
+        </section>
+        <section id="chart-line">
+          <p class="eyebrow">CHART · LINE &mdash; slide annidata 2/3</p>
+          <h2>Time-to-insight, due coorti a confronto</h2>
+          <div class="content" style="display: flex; flex-direction: column;">
+            <div style="flex: 1; display: grid; grid-template-columns: 1fr 2fr; gap: 32px; min-height: 0; min-width: 0; padding-top: 8px;">
+              <div style="display: flex; flex-direction: column; justify-content: center; gap: 18px;">
+                <p class="eyebrow" style="color: var(--q-greydark);">MISURA</p>
+                <p style="font-size: 14pt; line-height: 1.45; margin: 0;">Giorni medi dalla richiesta business alla prima dashboard operativa.</p>
+                <div style="border-top: 1px solid var(--q-line); padding-top: 14px; display: flex; flex-direction: column; gap: 8px;">
+                  <span style="font-size: 11pt;"><span style="display:inline-block;width:12px;height:12px;background:#a1245a;border-radius:2px;margin-right:8px;vertical-align:middle;"></span>Prima del data platform</span>
+                  <span style="font-size: 11pt;"><span style="display:inline-block;width:12px;height:12px;background:#1ab197;border-radius:2px;margin-right:8px;vertical-align:middle;"></span>Dopo il rollout</span>
+                </div>
+              </div>
+              <div style="position: relative; min-height: 0; min-width: 0;">
+                <canvas data-chart="line">
+                <!--
+                {
+                  "data": {
+                    "labels": ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"],
+                    "datasets": [
+                      { "label": "Prima", "data": [42, 40, 44, 41, 39, 43, 45, 42, 40, 38, 41, 39], "borderColor": "#a1245a", "backgroundColor": "rgba(161,36,90,0.08)", "fill": true, "tension": 0.3, "borderWidth": 2.5, "pointRadius": 0 },
+                      { "label": "Dopo",  "data": [38, 32, 28, 24, 19, 16, 14, 12, 10,  9,  8,  7], "borderColor": "#1ab197", "backgroundColor": "rgba(26,177,151,0.10)", "fill": true, "tension": 0.3, "borderWidth": 2.5, "pointRadius": 0 }
+                    ]
+                  },
+                  "options": {
+                    "maintainAspectRatio": false,
+                    "plugins": { "legend": { "display": false } },
+                    "scales": { "y": { "beginAtZero": true, "title": { "display": true, "text": "Giorni" } } }
+                  }
+                }
+                -->
+                </canvas>
+              </div>
+            </div>
+          </div>
+          <div class="footnote">08 / Chart · line</div>
+        </section>
+        <section id="chart-doughnut">
+          <p class="eyebrow">CHART · DOUGHNUT &mdash; slide annidata 3/3</p>
+          <h2>Mix tecnologico dei nostri progetti</h2>
+          <div class="content" style="display: flex; flex-direction: column;">
+            <div style="flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; min-height: 0; min-width: 0; padding-top: 8px;">
+              <div style="display: flex; flex-direction: column; justify-content: center;">
+                <blockquote>
+                  «Scegliamo la tecnologia giusta per il problema, non il contrario. È il motivo per cui il nostro portfolio è polyglot.»
+                  <cite>— Data Engineering Practice Lead</cite>
+                </blockquote>
+              </div>
+              <div style="position: relative; min-height: 0; min-width: 0;">
+                <canvas data-chart="doughnut">
+                <!--
+                {
+                  "data": {
+                    "labels": ["Databricks", "Confluent", "dbt", "Azure AI", "GCP", "Altro"],
+                    "datasets": [{
+                      "data": [32, 22, 18, 12, 10, 6],
+                      "backgroundColor": ["#a1245a", "#1ab197", "#4da0d7", "#ffbe0b", "#161719", "#cac9ca"],
+                      "borderColor": "#ffffff",
+                      "borderWidth": 3
+                    }]
+                  },
+                  "options": {
+                    "maintainAspectRatio": false,
+                    "cutout": "62%",
+                    "plugins": { "legend": { "position": "right", "labels": { "boxWidth": 14, "padding": 14 } } }
+                  }
+                }
+                -->
+                </canvas>
+              </div>
+            </div>
+          </div>
+          <div class="footnote">09 / Chart · doughnut &mdash; <span class="text-burgundy font-bold">→</span> per proseguire</div>
+        </section>
+      </section>
+
+      <section id="divider-motion" class="section-divider dark" data-state="is-section-divider" data-transition="fade">
+        <p class="eyebrow">PARTE 03</p>
+        <h1>Motion &amp;<br>background</h1>
+        <p>Transizioni per slide, background di ogni colore, auto-animate tra stati.</p>
+      </section>
+
+      <section id="transitions">
+        <p class="eyebrow">MOTION · TRANSIZIONI &amp; BACKGROUND</p>
+        <h2>Ogni slide sceglie la propria atmosfera</h2>
+        <div class="content">
+          <div class="split" style="gap: 48px;">
+            <div>
+              <p class="eyebrow" style="color: var(--q-greydark);">TRANSIZIONI DISPONIBILI</p>
+              <div style="margin-top: 6px; margin-bottom: 28px;">
+                <span class="chip active">slide</span>
+                <span class="chip">fade</span>
+                <span class="chip">convex</span>
+                <span class="chip">concave</span>
+                <span class="chip">zoom</span>
+                <span class="chip">none</span>
+              </div>
+              <p class="text-muted" style="font-size: 12pt; margin-bottom: 6px;">Per slide:</p>
+              <pre style="margin: 0;"><code class="language-html" data-trim><script type="text/template">
+<section data-transition="fade">
+<section data-transition="slide-in fade-out">
+<section data-background-color="#a1245a">
+<section data-background-image="bg.jpg">
+</script></code></pre>
+            </div>
+            <div>
+              <p class="eyebrow" style="color: var(--q-greydark);">AUTO-ANIMATE</p>
+              <p class="text-muted" style="font-size: 13pt; margin-top: 6px;">Slide gemelle con <code style="font-size: 12pt;">data-auto-animate</code>: reveal.js interpola posizioni, dimensioni e colori tra elementi con lo stesso <code style="font-size: 12pt;">data-id</code>.</p>
+              <div style="background: var(--q-grey); border: 1px solid var(--q-line); border-radius: 8px; padding: 22px; margin-top: 16px; min-height: 180px; display: flex; flex-direction: column; gap: 10px;">
+                <div class="anim-box" style="width: 140px; height: 38px;">STATO A</div>
+                <div style="display: flex; align-items: center; gap: 12px; color: var(--q-greydark); font-size: 10pt; letter-spacing: 0.16em;">
+                  <i class="fa-solid fa-arrow-down-long"></i> AUTO-ANIMATE INTERPOLA
+                </div>
+                <div class="anim-box" style="width: 240px; height: 66px; background: var(--q-teal); border-radius: 16px;">STATO B</div>
+              </div>
+              <p class="text-muted" style="font-size: 11pt; margin-top: 14px;">Nessun keyframe CSS. reveal.js confronta gli stili e genera le transizioni a runtime.</p>
+            </div>
+          </div>
+        </div>
+        <div class="footnote">10 / Motion &amp; background</div>
+      </section>
+
+      <section id="divider-analytical" class="section-divider alt" data-state="is-section-divider" data-transition="fade">
+        <p class="eyebrow">PARTE 04</p>
+        <h1>Pattern<br>analitici</h1>
+        <p>Un mix tra rigore McKinsey e chiarezza Apple — quindici layout per dire le cose in modo netto.</p>
+      </section>
+
+      <!-- 11. Executive summary — McKinsey "the bottom line" -->
+      <section id="exec-summary">
+        <p class="eyebrow">EXECUTIVE SUMMARY</p>
+        <h2>I tre punti che contano, prima di tutto il resto</h2>
+        <div class="content">
+          <div class="exec-grid">
+            <div class="exec-item">
+              <span class="exec-num">FINDING 01</span>
+              <h3>Il mercato si consolida più rapidamente del previsto</h3>
+              <p>Tre hyperscaler detengono il 72% dei workload dati enterprise in Europa. La finestra per posizionarsi si chiude entro 18 mesi.</p>
+            </div>
+            <div class="exec-item">
+              <span class="exec-num">FINDING 02</span>
+              <h3>Il vero vincolo non è la tecnologia, è l'ownership</h3>
+              <p>Il 64% dei progetti dati rallenta su decisioni di governance, non su questioni tecniche. I data product mitigano il rischio.</p>
+            </div>
+            <div class="exec-item">
+              <span class="exec-num">FINDING 03</span>
+              <h3>Gli incumbent con capitale-dato strutturato vincono</h3>
+              <p>Le aziende con un catalogo attivo e lineage completo pubblicano dashboard 3.2× più velocemente dei competitor.</p>
+            </div>
+          </div>
+          <div class="bottom-line">
+            <span class="bl-label">THE BOTTOM LINE</span>
+            <p>Agire nei prossimi 6 mesi sull'asse <strong>data-product × governance</strong> è la leva con il ROI più alto a 24 mesi &mdash; tutto il resto può aspettare.</p>
+          </div>
+        </div>
+        <div class="footnote">11 / Executive summary &mdash; the bottom line</div>
+      </section>
+
+      <!-- 12. Mega metric — Apple keynote headline number -->
+      <section id="mega-metric">
+        <p class="eyebrow">BY THE NUMBERS</p>
+        <h2>Un ordine di grandezza, per dire le cose</h2>
+        <div class="content">
+          <div class="mega-wrap">
+            <div>
+              <p class="mega-number">2.4<span style="font-size: 72pt; font-weight: 700;">B</span></p>
+              <p class="mega-sub">eventi orchestrati al giorno sulla nostra piattaforma dati, per clienti enterprise in <strong>12 paesi</strong>.</p>
+            </div>
+            <div class="mega-context">
+              <p class="eyebrow" style="color: var(--q-greydark); margin-bottom: 14px;">CONTESTO</p>
+              <ul>
+                <li><strong>99.97%</strong> SLA annuo sostenuto</li>
+                <li><strong>&lt;200ms</strong> latenza p95 end-to-end</li>
+                <li><strong>-38%</strong> costi run YoY dal 2023</li>
+                <li><strong>7×</strong> team attivi in contemporanea</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <div class="footnote">12 / Mega metric &mdash; headline number</div>
+      </section>
+
+      <!-- 13. 2×2 matrix — BCG/McKinsey strategic grid -->
+      <section id="matrix-2x2">
+        <p class="eyebrow">FRAMEWORK · STRATEGIC MATRIX</p>
+        <h2>Dove concentrare l'energia, nei prossimi due trimestri</h2>
+        <div class="content">
+          <div class="matrix-wrap">
+            <div class="matrix-y-axis">
+              <span>ALTO IMPATTO</span>
+              <span>BASSO IMPATTO</span>
+            </div>
+            <div class="matrix-grid">
+              <div class="matrix-quadrant">
+                <span class="q-label">QUICK WINS</span>
+                <ul>
+                  <li>Data quality monitoring</li>
+                  <li>Dashboard SLA unificato</li>
+                  <li>Naming convention catalog</li>
+                </ul>
+              </div>
+              <div class="matrix-quadrant hot">
+                <span class="q-label">BIG BETS</span>
+                <ul>
+                  <li>Data mesh rollout</li>
+                  <li>ML feature platform</li>
+                  <li>Contract-first ingestion</li>
+                </ul>
+              </div>
+              <div class="matrix-quadrant dim">
+                <span class="q-label">LOW PRIORITY</span>
+                <ul>
+                  <li>Retro ad-hoc reports</li>
+                  <li>Legacy ETL maintenance</li>
+                </ul>
+              </div>
+              <div class="matrix-quadrant">
+                <span class="q-label">RECONSIDER</span>
+                <ul>
+                  <li>Multi-cloud symmetria</li>
+                  <li>Custom orchestrator</li>
+                </ul>
+              </div>
+            </div>
+            <div class="matrix-x-axis">
+              <span>BASSO SFORZO</span>
+              <span>ALTO SFORZO</span>
+            </div>
+          </div>
+        </div>
+        <div class="footnote">13 / 2×2 matrix &mdash; impatto vs. sforzo</div>
+      </section>
+
+      <!-- 14. Horizontal timeline / roadmap -->
+      <section id="timeline">
+        <p class="eyebrow">ROADMAP · 18 MESI</p>
+        <h2>La traiettoria da qui al Q2 FY27</h2>
+        <div class="content">
+          <div class="timeline">
+            <div class="timeline-item done">
+              <p class="tl-date">Q1 FY26 · DONE</p>
+              <h3>Foundations</h3>
+              <p>Catalogo attivo, lineage, primi 5 data product pilota.</p>
+            </div>
+            <div class="timeline-item done">
+              <p class="tl-date">Q2 FY26 · IN CORSO</p>
+              <h3>Contract-first</h3>
+              <p>Schema registry e data contracts su tutti gli asset bronze.</p>
+            </div>
+            <div class="timeline-item">
+              <p class="tl-date">Q3 FY26</p>
+              <h3>Federation</h3>
+              <p>Primo dominio federato in produzione, owner accountable.</p>
+            </div>
+            <div class="timeline-item">
+              <p class="tl-date">Q4 FY26</p>
+              <h3>ML platform</h3>
+              <p>Feature store e serving layer condivisi tra 3 team.</p>
+            </div>
+            <div class="timeline-item">
+              <p class="tl-date">Q2 FY27 · TARGET</p>
+              <h3>Scale</h3>
+              <p>&gt; 50 data product, SLA enterprise-wide, zero incident-blocking.</p>
+            </div>
+          </div>
+        </div>
+        <div class="footnote">14 / Roadmap &mdash; horizontal timeline</div>
+      </section>
+
+      <!-- 15. Before / after comparison -->
+      <section id="before-after">
+        <p class="eyebrow">SHIFT · OPERATIONAL MODEL</p>
+        <h2>Da reporting reattivo a data product operativi</h2>
+        <div class="content">
+          <div class="ba-wrap">
+            <div class="ba-panel before">
+              <p class="ba-label">PRIMA &mdash; AS-IS</p>
+              <h3>Reporting centralizzato, a richiesta</h3>
+              <ul>
+                <li>Richieste via ticket</li>
+                <li>Dashboard una-tantum</li>
+                <li>Ownership del dato opaca</li>
+                <li>SLA informali, best-effort</li>
+                <li>Duplicazione tra team</li>
+              </ul>
+            </div>
+            <div class="ba-arrow">
+              <i class="fa-solid fa-arrow-right-long"></i>
+            </div>
+            <div class="ba-panel after">
+              <p class="ba-label">DOPO &mdash; TO-BE</p>
+              <h3>Data product, con owner e contratto</h3>
+              <ul>
+                <li>Self-service via catalogo</li>
+                <li>Prodotti-dato versionati</li>
+                <li>Owner nominato, accountable</li>
+                <li>SLA contrattualizzato</li>
+                <li>Uno schema, più consumer</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <div class="footnote">15 / Before × After &mdash; state shift</div>
+      </section>
+
+      <!-- 16. Process flow — 5 connected steps -->
+      <section id="process-flow">
+        <p class="eyebrow">PROCESS · DATA PRODUCT LIFECYCLE</p>
+        <h2>Come portiamo un dato da grezzo a prodotto</h2>
+        <div class="content">
+          <div class="process-flow">
+            <div class="process-step">
+              <div class="step-num">1</div>
+              <h3>Discover</h3>
+              <p>Identifichiamo dominio, stakeholder e use case prioritario.</p>
+            </div>
+            <div class="process-step">
+              <div class="step-num">2</div>
+              <h3>Contract</h3>
+              <p>Schema, SLA, ownership definiti prima di scrivere codice.</p>
+            </div>
+            <div class="process-step">
+              <div class="step-num">3</div>
+              <h3>Build</h3>
+              <p>Pipeline test-first, osservabilità dal primo giorno.</p>
+            </div>
+            <div class="process-step pending">
+              <div class="step-num">4</div>
+              <h3>Publish</h3>
+              <p>Registrazione in catalogo, onboarding dei primi consumer.</p>
+            </div>
+            <div class="process-step pending">
+              <div class="step-num">5</div>
+              <h3>Iterate</h3>
+              <p>Feedback loop continuo su qualità, utilizzo, costi.</p>
+            </div>
+          </div>
+        </div>
+        <div class="footnote">16 / Process flow &mdash; 5 tappe</div>
+      </section>
+
+      <!-- 17. Pyramid hierarchy — DIKW -->
+      <section id="pyramid">
+        <p class="eyebrow">FRAMEWORK · DIKW</p>
+        <h2>La piramide del valore: dal dato alla decisione</h2>
+        <div class="content">
+          <div class="pyramid">
+            <div class="pyramid-stack">
+              <div class="pyramid-layer l1">DECISIONI<span class="p-sub">AZIONE</span></div>
+              <div class="pyramid-layer l2">INSIGHT<span class="p-sub">CONOSCENZA</span></div>
+              <div class="pyramid-layer l3">INFORMAZIONE<span class="p-sub">CONTESTO</span></div>
+              <div class="pyramid-layer l4">DATO GREZZO<span class="p-sub">FATTI</span></div>
+            </div>
+            <div class="pyramid-legend">
+              <div class="pl-item">
+                <h4>Dato grezzo</h4>
+                <p>Eventi, log, transazioni. Volume enorme, valore zero senza contesto.</p>
+              </div>
+              <div class="pl-item">
+                <h4>Informazione</h4>
+                <p>Dato arricchito con contesto, struttura, relazioni note.</p>
+              </div>
+              <div class="pl-item">
+                <h4>Insight</h4>
+                <p>Pattern ricorrenti, anomalie, relazioni non ovvie.</p>
+              </div>
+              <div class="pl-item">
+                <h4>Decisioni</h4>
+                <p>Azioni concrete che spostano un KPI di business.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="footnote">17 / Pyramid &mdash; DIKW hierarchy</div>
+      </section>
+
+      <!-- 18. Full-slide pull quote — editorial -->
+      <section id="pull-quote" class="quote-slide no-chrome">
+        <span class="q-mark">&ldquo;</span>
+        <p class="q-body">
+          Il vantaggio competitivo non arriva da <em>più dati</em>: arriva dal trasformarli in decisioni, prima degli altri.
+        </p>
+        <div class="q-attrib">
+          <div class="q-line"></div>
+          <div>
+            <p class="q-name">Marta Conti</p>
+            <p class="q-role">Chief Data Officer · Cliente Enterprise</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 19. Comparison table — feature matrix -->
+      <section id="comparison">
+        <p class="eyebrow">COMPARISON · APPROACH</p>
+        <h2>Tre modelli a confronto, sette dimensioni che contano</h2>
+        <div class="content">
+          <table class="comp-table">
+            <thead>
+              <tr>
+                <th style="width: 32%;"></th>
+                <th>Data warehouse classico</th>
+                <th>Lakehouse open</th>
+                <th class="featured">Data product mesh</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="row-label">Ownership del dato</td>
+                <td class="cell-icon cell-cross"><i class="fa-solid fa-xmark"></i></td>
+                <td class="cell-icon cell-partial"><i class="fa-solid fa-circle-half-stroke"></i></td>
+                <td class="cell-icon featured cell-check"><i class="fa-solid fa-check"></i></td>
+              </tr>
+              <tr>
+                <td class="row-label">Self-service consumer</td>
+                <td class="cell-icon cell-partial"><i class="fa-solid fa-circle-half-stroke"></i></td>
+                <td class="cell-icon cell-check"><i class="fa-solid fa-check"></i></td>
+                <td class="cell-icon featured cell-check"><i class="fa-solid fa-check"></i></td>
+              </tr>
+              <tr>
+                <td class="row-label">Contratto di interfaccia</td>
+                <td class="cell-icon cell-cross"><i class="fa-solid fa-xmark"></i></td>
+                <td class="cell-icon cell-cross"><i class="fa-solid fa-xmark"></i></td>
+                <td class="cell-icon featured cell-check"><i class="fa-solid fa-check"></i></td>
+              </tr>
+              <tr>
+                <td class="row-label">Costi scalabili per dominio</td>
+                <td class="cell-icon cell-cross"><i class="fa-solid fa-xmark"></i></td>
+                <td class="cell-icon cell-check"><i class="fa-solid fa-check"></i></td>
+                <td class="cell-icon featured cell-check"><i class="fa-solid fa-check"></i></td>
+              </tr>
+              <tr>
+                <td class="row-label">Time-to-insight mediano</td>
+                <td>6 settimane</td>
+                <td>3 settimane</td>
+                <td class="featured"><strong>5 giorni</strong></td>
+              </tr>
+              <tr>
+                <td class="row-label">Governance scalabile</td>
+                <td class="cell-icon cell-partial"><i class="fa-solid fa-circle-half-stroke"></i></td>
+                <td class="cell-icon cell-partial"><i class="fa-solid fa-circle-half-stroke"></i></td>
+                <td class="cell-icon featured cell-check"><i class="fa-solid fa-check"></i></td>
+              </tr>
+              <tr>
+                <td class="row-label">Maturità richiesta</td>
+                <td>Bassa</td>
+                <td>Media</td>
+                <td class="featured">Alta</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="footnote">18 / Comparison table &mdash; feature matrix</div>
+      </section>
+
+      <!-- 20. MECE framework buckets — 3 columns -->
+      <section id="mece-buckets">
+        <p class="eyebrow">FRAMEWORK · HORIZONS</p>
+        <h2>Tre orizzonti, nove iniziative, un'unica direzione</h2>
+        <div class="content">
+          <div class="buckets">
+            <div class="bucket">
+              <div class="b-head">
+                <span class="b-num">HORIZON 01 · 0–6 MESI</span>
+                <h3>Stabilizzare</h3>
+              </div>
+              <div class="b-body">
+                <div class="b-item">
+                  <span class="b-title">Catalog coverage</span>
+                  <span class="b-desc">100% degli asset core mappati e owned.</span>
+                </div>
+                <div class="b-item">
+                  <span class="b-title">SLA runbook</span>
+                  <span class="b-desc">Definiti per le 10 pipeline più consumate.</span>
+                </div>
+                <div class="b-item">
+                  <span class="b-title">Data quality baseline</span>
+                  <span class="b-desc">Freshness, completeness, validity monitorati.</span>
+                </div>
+              </div>
+            </div>
+            <div class="bucket hot">
+              <div class="b-head">
+                <span class="b-num">HORIZON 02 · 6–18 MESI</span>
+                <h3>Scalare</h3>
+              </div>
+              <div class="b-body">
+                <div class="b-item">
+                  <span class="b-title">Contract-first ingestion</span>
+                  <span class="b-desc">Schema registry per ogni source producer.</span>
+                </div>
+                <div class="b-item">
+                  <span class="b-title">Federated domains</span>
+                  <span class="b-desc">Primo dominio con ownership locale end-to-end.</span>
+                </div>
+                <div class="b-item">
+                  <span class="b-title">Developer platform</span>
+                  <span class="b-desc">Template, CLI, CI/CD dedicati ai team dati.</span>
+                </div>
+              </div>
+            </div>
+            <div class="bucket">
+              <div class="b-head">
+                <span class="b-num">HORIZON 03 · 18+ MESI</span>
+                <h3>Reinventare</h3>
+              </div>
+              <div class="b-body">
+                <div class="b-item">
+                  <span class="b-title">AI-ready feature store</span>
+                  <span class="b-desc">Feature condivise tra analytics e ML.</span>
+                </div>
+                <div class="b-item">
+                  <span class="b-title">Real-time by default</span>
+                  <span class="b-desc">Stream-first, batch come caso particolare.</span>
+                </div>
+                <div class="b-item">
+                  <span class="b-title">Data marketplace interno</span>
+                  <span class="b-desc">Pubblicazione, valuation, SLA contrattuali.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="footnote">19 / MECE framework &mdash; 3 horizons</div>
+      </section>
+
+      <!-- 21. Annotated exhibit — chart + callout -->
+      <section id="exhibit">
+        <span class="exhibit-label">EXHIBIT 01</span>
+        <p class="eyebrow" style="margin-top: 18px;">ANALYTICAL · CHART WITH CALLOUT</p>
+        <h2>L'inflessione del Q3 racconta tutta la storia</h2>
+        <div class="content">
+          <div class="exhibit-wrap">
+            <div class="exhibit-chart">
+              <canvas data-chart="line">
+              <!--
+              {
+                "data": {
+                  "labels": ["Q1 23", "Q2 23", "Q3 23", "Q4 23", "Q1 24", "Q2 24", "Q3 24", "Q4 24", "Q1 25", "Q2 25", "Q3 25", "Q4 25"],
+                  "datasets": [
+                    { "label": "Costi run", "data": [100, 108, 112, 118, 122, 126, 124, 118, 108, 94, 78, 62], "borderColor": "#a1245a", "backgroundColor": "rgba(161,36,90,0.08)", "fill": true, "tension": 0.3, "borderWidth": 3, "pointRadius": 0, "pointHoverRadius": 6 },
+                    { "label": "Dati processati", "data": [100, 115, 130, 150, 170, 195, 220, 250, 290, 340, 400, 470], "borderColor": "#1ab197", "backgroundColor": "rgba(26,177,151,0.06)", "fill": false, "tension": 0.3, "borderWidth": 3, "pointRadius": 0, "pointHoverRadius": 6 }
+                  ]
+                },
+                "options": {
+                  "maintainAspectRatio": false,
+                  "plugins": { "legend": { "position": "bottom" } },
+                  "scales": { "y": { "beginAtZero": true, "title": { "display": true, "text": "Indice base 100 (Q1 '23)" } } }
+                }
+              }
+              -->
+              </canvas>
+            </div>
+            <div class="exhibit-side">
+              <div class="callout">
+                <p class="c-tag">KEY OBSERVATION</p>
+                <h3>Q3 '24 &mdash; il punto di flesso</h3>
+                <p>Per la prima volta i costi run scendono mentre i dati processati continuano a crescere. È qui che il rientro dell'investimento diventa strutturale, non contabile.</p>
+              </div>
+              <div style="font-size: 11pt; line-height: 1.5; color: var(--q-body);">
+                <p style="margin: 0 0 6px;"><span style="display:inline-block;width:10px;height:10px;background:#a1245a;border-radius:2px;margin-right:6px;"></span><strong>Costi run</strong> &mdash; infra + storage + compute</p>
+                <p style="margin: 0;"><span style="display:inline-block;width:10px;height:10px;background:#1ab197;border-radius:2px;margin-right:6px;"></span><strong>Dati processati</strong> &mdash; TB aggregati trimestre</p>
+              </div>
+              <p class="exhibit-source">Fonte: telemetria piattaforma, 2023–2025 · n = 12 trimestri</p>
+            </div>
+          </div>
+        </div>
+        <div class="footnote">20 / Annotated exhibit &mdash; chart + callout</div>
+      </section>
+
+      <!-- 22. KPI dashboard — multi-stat grid -->
+      <section id="kpi-dashboard">
+        <p class="eyebrow">KPI DASHBOARD · FY26 H1</p>
+        <h2>Lo stato di salute del programma, in una sola schermata</h2>
+        <div class="content">
+          <div class="kpi-grid">
+            <div class="kpi-tile">
+              <p class="kpi-label">DATA PRODUCT ATTIVI</p>
+              <p class="kpi-val">52</p>
+              <p class="kpi-trend up"><i class="fa-solid fa-arrow-trend-up"></i> +27 YoY</p>
+            </div>
+            <div class="kpi-tile featured">
+              <p class="kpi-label">TIME-TO-INSIGHT</p>
+              <p class="kpi-val">5d</p>
+              <p class="kpi-trend"><i class="fa-solid fa-arrow-trend-down"></i> -72% vs baseline</p>
+            </div>
+            <div class="kpi-tile">
+              <p class="kpi-label">SLA COMPLIANCE</p>
+              <p class="kpi-val">99.7%</p>
+              <p class="kpi-trend up"><i class="fa-solid fa-arrow-trend-up"></i> +0.4pp QoQ</p>
+            </div>
+            <div class="kpi-tile">
+              <p class="kpi-label">COSTI RUN PER TB</p>
+              <p class="kpi-val">€3.80</p>
+              <p class="kpi-trend down"><i class="fa-solid fa-arrow-trend-down"></i> -38% YoY</p>
+            </div>
+            <div class="kpi-tile">
+              <p class="kpi-label">TEAM ONBOARDED</p>
+              <p class="kpi-val">14</p>
+              <p class="kpi-trend up"><i class="fa-solid fa-arrow-trend-up"></i> +9 YoY</p>
+            </div>
+            <div class="kpi-tile">
+              <p class="kpi-label">INCIDENT CRITICI</p>
+              <p class="kpi-val">0</p>
+              <p class="kpi-trend flat"><i class="fa-solid fa-minus"></i> 120 giorni</p>
+            </div>
+          </div>
+        </div>
+        <div class="footnote">21 / KPI dashboard &mdash; 6 metriche</div>
+      </section>
+
+      <!-- 23. One big idea — Apple minimal -->
+      <section id="one-idea" class="one-idea no-chrome">
+        <p class="oi-tag">LA TESI, IN UNA FRASE</p>
+        <h1>I dati diventano un <em>prodotto</em> solo quando qualcuno ne è responsabile.</h1>
+        <p class="oi-sub">Tutto il resto &mdash; piattaforme, linguaggi, architetture &mdash; è conseguenza.</p>
+      </section>
+
+      <!-- 24. Logo wall — trusted by -->
+      <section id="logo-wall">
+        <p class="eyebrow">TRUSTED BY · SELECTED CLIENTS</p>
+        <h2>Ottanta imprese italiane, dodici industry, un modello</h2>
+        <div class="content">
+          <div class="logo-wall">
+            <div class="logo-tile">ACME<span class="lt-sub">Manufacturing</span></div>
+            <div class="logo-tile">NORDWIND<span class="lt-sub">Logistics</span></div>
+            <div class="logo-tile featured">+80<span class="lt-sub">Clienti attivi</span></div>
+            <div class="logo-tile">FLORA+<span class="lt-sub">Retail</span></div>
+            <div class="logo-tile">HELIOS<span class="lt-sub">Energy</span></div>
+            <div class="logo-tile">VINEA<span class="lt-sub">Food &amp; Bev</span></div>
+            <div class="logo-tile">KAIROS<span class="lt-sub">Fintech</span></div>
+            <div class="logo-tile">ARGO<span class="lt-sub">Insurance</span></div>
+            <div class="logo-tile">MERIDIAN<span class="lt-sub">Healthcare</span></div>
+            <div class="logo-tile">VOLTA<span class="lt-sub">Utilities</span></div>
+            <div class="logo-tile">PRISMA<span class="lt-sub">Telco</span></div>
+            <div class="logo-tile">TERRA<span class="lt-sub">Agri-tech</span></div>
+          </div>
+        </div>
+        <div class="footnote">22 / Logo wall &mdash; trusted by</div>
+      </section>
+
+      <!-- 25. Iceberg — visible vs hidden -->
+      <section id="iceberg">
+        <p class="eyebrow">METAFORA · WHAT YOU SEE, WHAT YOU DON'T</p>
+        <h2>Il 90% del lavoro che rende un data product è invisibile</h2>
+        <div class="content">
+          <div class="iceberg">
+            <div class="ice-above">
+              <div class="ice-label">
+                10% VISIBILE
+                <span class="ice-sub">Quello che l'utente tocca</span>
+              </div>
+              <div class="ice-items">
+                <span class="ice-chip">Dashboard</span>
+                <span class="ice-chip">API pubblica</span>
+                <span class="ice-chip">Report</span>
+                <span class="ice-chip">Notifiche</span>
+              </div>
+            </div>
+            <div class="ice-below">
+              <div class="ice-label">
+                90% SOMMERSO
+                <span class="ice-sub">Dove si costruisce la fiducia</span>
+              </div>
+              <div class="ice-items">
+                <span class="ice-chip">Schema registry</span>
+                <span class="ice-chip">Data contracts</span>
+                <span class="ice-chip">Lineage</span>
+                <span class="ice-chip">Quality checks</span>
+                <span class="ice-chip">Access control</span>
+                <span class="ice-chip">Osservabilità</span>
+                <span class="ice-chip">SLA monitoring</span>
+                <span class="ice-chip">Cost governance</span>
+                <span class="ice-chip">Disaster recovery</span>
+                <span class="ice-chip">Versioning</span>
+                <span class="ice-chip">Retention policy</span>
+                <span class="ice-chip">PII classification</span>
+                <span class="ice-chip">Audit trail</span>
+                <span class="ice-chip">Dependency graph</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="footnote">23 / Iceberg &mdash; visible vs. hidden</div>
+      </section>
+
+      <section id="divider-close" class="section-divider" data-state="is-section-divider" data-transition="fade">
+        <p class="eyebrow">PARTE 05</p>
+        <h1>Per chiudere</h1>
+        <p>Un riepilogo breve e i comandi da ricordare.</p>
+      </section>
+
+      <section id="closing" class="hero no-chrome" data-transition="fade">
+        <p class="eyebrow">GRAZIE · FACCIAMO SQUADRA</p>
+        <h1 style="max-width: 85%;">Data, at core.<br>Slide, at scale.</h1>
+        <p class="hero-lead" style="max-width: 65%;">
+          Il template è tuo. Forkalo, riempilo con i tuoi contenuti, presentalo &mdash; o passalo ai colleghi.
+        </p>
+        <div style="position: absolute; bottom: 120px; left: var(--slide-padding); right: var(--slide-padding); display: flex; gap: 40px; z-index: 2;">
+          <div>
+            <p class="eyebrow on-dark" style="margin-bottom: 6px; opacity: 0.75;">SORGENTE</p>
+            <p style="color: white; font-size: 14pt; margin: 0;"><code style="font-size: 13pt; background: rgba(255,255,255,0.12); padding: 2px 8px; border-radius: 4px;">presentation.html</code> + <code style="font-size: 13pt; background: rgba(255,255,255,0.12); padding: 2px 8px; border-radius: 4px;">styles.css</code></p>
+          </div>
+          <div>
+            <p class="eyebrow on-dark" style="margin-bottom: 6px; opacity: 0.75;">EXPORT PDF</p>
+            <p style="color: white; font-size: 14pt; margin: 0;"><code style="font-size: 13pt; background: rgba(255,255,255,0.12); padding: 2px 8px; border-radius: 4px;">?print-pdf</code> o <code style="font-size: 13pt; background: rgba(255,255,255,0.12); padding: 2px 8px; border-radius: 4px;">npx decktape</code></p>
+          </div>
+          <div>
+            <p class="eyebrow on-dark" style="margin-bottom: 6px; opacity: 0.75;">SPEAKER VIEW</p>
+            <p style="color: white; font-size: 14pt; margin: 0;">Premi <code style="font-size: 13pt; background: rgba(255,255,255,0.12); padding: 2px 8px; border-radius: 4px;">S</code></p>
+          </div>
+        </div>
+        <div class="hero-meta">
+          <span>WWW.QUANTYCA.IT</span>
+          <span>DECK BUILT WITH REVEAL.JS 5.1</span>
+        </div>
+        <aside class="notes">
+          Concludi ringraziando e invitando i colleghi a riutilizzare il template. Ricorda: i font sono locali, nessuna dipendenza esterna obbligatoria se non per Font Awesome.
+        </aside>
+      </section>
+
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/highlight/highlight.js"></script>
+  <script>
+    window.__revealReady = Reveal.initialize({
+      width: 1280,
+      height: 720,
+      margin: 0,
+      controls: false,
+      progress: false,
+      slideNumber: false,
+      hash: false,
+      transition: 'none',
+      center: false,
+      embedded: false,
+      plugins: [ RevealHighlight ]
+    });
+  </script>
+</body>
+</html>

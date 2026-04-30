@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>pseudo-after-underline</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #ffffff; }
+  #target {
+    width: 960px;
+    height: 540px;
+    box-sizing: border-box;
+    padding: 64px;
+    font-family: Arial, sans-serif;
+    color: #1a1a1a;
+    background: #ffffff;
+  }
+  h2 {
+    font-size: 36px;
+    font-weight: 700;
+    margin: 0 0 24px;
+    position: relative;
+  }
+  h2::after {
+    content: '';
+    display: block;
+    width: 56px;
+    height: 4px;
+    background: #c41e3a;
+    margin-top: 12px;
+  }
+  p { font-size: 20px; line-height: 1.5; margin: 0; }
+</style>
+</head>
+<body>
+  <div id="target">
+    <h2>Section heading</h2>
+    <p>Body copy under a pseudo-element accent bar.</p>
+  </div>
+</body>
+</html>

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>border-radius</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #ffffff; }
+  #target {
+    width: 960px;
+    height: 540px;
+    background: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 32px;
+  }
+  .pill {
+    width: 220px; height: 220px;
+    background: #4285f4;
+    border-radius: 32px;
+  }
+  .circle {
+    width: 220px; height: 220px;
+    background: #ea4335;
+    border-radius: 50%;
+  }
+  .square {
+    width: 220px; height: 220px;
+    background: #34a853;
+    border-radius: 0;
+  }
+</style>
+</head>
+<body>
+  <div id="target">
+    <div class="pill"></div>
+    <div class="circle"></div>
+    <div class="square"></div>
+  </div>
+</body>
+</html>

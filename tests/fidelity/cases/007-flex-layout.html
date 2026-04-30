@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>flex-layout</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #ffffff; }
+  #target {
+    width: 960px;
+    height: 540px;
+    box-sizing: border-box;
+    padding: 48px;
+    background: #ffffff;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    font-family: Arial, sans-serif;
+  }
+  .row { display: flex; gap: 16px; }
+  .tile {
+    flex: 1;
+    height: 120px;
+    border-radius: 8px;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    font-weight: 700;
+  }
+  .a { background: #1976d2; }
+  .b { background: #388e3c; }
+  .c { background: #f57c00; }
+  .d { background: #7b1fa2; }
+</style>
+</head>
+<body>
+  <div id="target">
+    <div class="row">
+      <div class="tile a">One</div>
+      <div class="tile b">Two</div>
+    </div>
+    <div class="row">
+      <div class="tile c">Three</div>
+      <div class="tile d">Four</div>
+    </div>
+  </div>
+</body>
+</html>

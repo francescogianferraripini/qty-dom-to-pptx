@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>ancestor-transform-scale</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #ffffff; }
+  /* The wrapper mimics reveal.js fitting its 'logical' slide into a smaller
+     viewport. getBoundingClientRect on #target is post-transform; computed
+     style font-size etc. is logical, so without the Phase 1 fix everything
+     ships ~1/0.6× too large. */
+  .scaler {
+    width: 1600px;
+    height: 900px;
+    transform: scale(0.6) translate(-50%, -50%);
+    transform-origin: 0 0;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+  }
+  #target {
+    width: 1600px;
+    height: 900px;
+    box-sizing: border-box;
+    padding: 96px;
+    font-family: Arial, sans-serif;
+    color: #1a1a1a;
+    background: #ffffff;
+  }
+  h1 { font-size: 80px; margin: 0 0 32px; font-weight: 700; }
+  p  { font-size: 36px; line-height: 1.4; margin: 0 0 24px; }
+  .badge {
+    display: inline-block;
+    background: #c41e3a;
+    color: #fff;
+    padding: 16px 28px;
+    border-radius: 12px;
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: 2px;
+  }
+</style>
+</head>
+<body>
+  <div class="scaler">
+    <div id="target">
+      <h1>Scaled deck headline</h1>
+      <p>The quick brown fox jumps over the lazy dog.</p>
+      <p><span class="badge">SHIPPED</span></p>
+    </div>
+  </div>
+</body>
+</html>

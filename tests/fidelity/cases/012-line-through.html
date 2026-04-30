@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>line-through</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #ffffff; }
+  #target {
+    width: 960px;
+    height: 540px;
+    box-sizing: border-box;
+    padding: 64px;
+    font-family: Arial, sans-serif;
+    color: #222;
+    background: #ffffff;
+  }
+  h2 { font-size: 28px; margin: 0 0 24px; font-weight: 700; }
+  ul { font-size: 22px; line-height: 1.6; margin: 0; padding-left: 28px; }
+  .strike { text-decoration: line-through; color: #888; }
+</style>
+</head>
+<body>
+  <div id="target">
+    <h2>Before / after</h2>
+    <ul>
+      <li><span class="strike">Manual deployment</span></li>
+      <li><span class="strike">Local-only logging</span></li>
+      <li><span class="strike">Single-region failover</span></li>
+      <li>One-click deploy with rollback</li>
+    </ul>
+  </div>
+</body>
+</html>

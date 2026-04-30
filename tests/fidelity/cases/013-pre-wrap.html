@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>pre-wrap</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #ffffff; }
+  #target {
+    width: 960px;
+    height: 540px;
+    box-sizing: border-box;
+    padding: 64px;
+    font-family: 'Courier New', monospace;
+    color: #1a1a1a;
+    background: #ffffff;
+  }
+  h2 {
+    font-family: Arial, sans-serif;
+    font-size: 24px;
+    margin: 0 0 16px;
+    font-weight: 700;
+  }
+  pre {
+    white-space: pre-wrap;
+    font-size: 18px;
+    line-height: 1.5;
+    margin: 0;
+    padding: 16px;
+    background: #f4f4f6;
+    border-left: 4px solid #1a73e8;
+  }
+</style>
+</head>
+<body>
+  <div id="target">
+    <h2>Code excerpt</h2>
+<pre>function greet(name) {
+    return "Hello, " + name + "!";
+}
+
+greet("world");</pre>
+  </div>
+</body>
+</html>

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>generic-sans-serif</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #ffffff; }
+  /* Body uses ONLY the generic sans-serif keyword. Phase 1 should resolve it
+     to a concrete PowerPoint-friendly fallback (Calibri) instead of shipping
+     'sans-serif' as a literal font name. */
+  #target {
+    width: 960px;
+    height: 540px;
+    box-sizing: border-box;
+    padding: 64px;
+    font-family: sans-serif;
+    color: #222;
+    background: #ffffff;
+  }
+  h1 { font-size: 48px; margin: 0 0 24px; font-weight: 700; }
+  p  { font-size: 22px; line-height: 1.4; margin: 0 0 16px; }
+  code {
+    font-family: monospace;
+    background: #f1f1f3;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+</style>
+</head>
+<body>
+  <div id="target">
+    <h1>Generic font fallback</h1>
+    <p>This deck declares only <code>font-family: sans-serif</code>. PowerPoint should pick a concrete face.</p>
+  </div>
+</body>
+</html>

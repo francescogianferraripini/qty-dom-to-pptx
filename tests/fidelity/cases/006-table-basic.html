@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>table-basic</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #ffffff; }
+  #target {
+    width: 960px;
+    height: 540px;
+    box-sizing: border-box;
+    padding: 64px;
+    font-family: Arial, sans-serif;
+    background: #ffffff;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 20px;
+  }
+  th, td {
+    padding: 12px 16px;
+    border: 1px solid #cccccc;
+    text-align: left;
+  }
+  th { background: #f5f5f5; font-weight: 700; }
+</style>
+</head>
+<body>
+  <div id="target">
+    <table>
+      <thead>
+        <tr><th>Name</th><th>Role</th><th>Score</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Alice</td><td>Engineer</td><td>92</td></tr>
+        <tr><td>Bob</td><td>Designer</td><td>87</td></tr>
+        <tr><td>Carol</td><td>PM</td><td>95</td></tr>
+      </tbody>
+    </table>
+  </div>
+</body>
+</html>
