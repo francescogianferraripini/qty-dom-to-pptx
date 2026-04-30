@@ -1710,12 +1710,32 @@ function prepareRenderItem(
         }
       }
 
+      // Detect single-line text boxes so we can disable wrap. The browser
+      // sized the rect from the element's actual rendered text width; if the
+      // PPTX viewer falls back to a different font with wider glyphs, text
+      // wraps and the visible height doubles. Disabling wrap keeps the line
+      // intact (it will overflow the box width slightly under font fallback,
+      // but won't mis-stack vertically).
+      const fontSizePxStyle = parseFloat(style.fontSize) || 0;
+      const lhStrStyle = style.lineHeight;
+      let lineHeightPx = fontSizePxStyle * 1.2;
+      if (lhStrStyle && lhStrStyle !== 'normal') {
+        const lh = parseFloat(lhStrStyle);
+        if (!isNaN(lh) && lh > 0) {
+          lineHeightPx = /^[0-9.]+$/.test(lhStrStyle) ? lh * fontSizePxStyle : lh;
+        }
+      }
+      const hasExplicitBreaks = textParts.some((p) => p.options?.breakLine);
+      const isSingleLine =
+        !hasExplicitBreaks && lineHeightPx > 0 && heightPx <= lineHeightPx * 1.5;
+
       textPayload = {
         text: textParts,
         align,
         valign,
         margin: paddingToPptxMargin(padding),
         intentionalSize,
+        wrap: !isSingleLine,
       };
     }
   }
@@ -1809,12 +1829,15 @@ function prepareRenderItem(
           valign: textPayload.valign,
           rotate: rotation,
           margin: textPayload.margin,
-          wrap: true,
+          wrap: textPayload.wrap !== false,
           // autoFit:true emits <a:spAutoFit/> ("resize shape to fit text"),
           // which collapses a flex/grid box back to text size. When the
           // alignment readout flagged the box as intentionally sized,
-          // keep the declared dimensions instead.
-          autoFit: !textPayload.intentionalSize,
+          // keep the declared dimensions instead. spAutoFit also misbehaves
+          // under wrap="none" in LibreOffice (centers the resized shape
+          // instead of left-anchoring), so disable it whenever we've turned
+          // wrap off.
+          autoFit: !textPayload.intentionalSize && textPayload.wrap !== false,
           vert: writingModeVert,
         },
       });
@@ -1932,11 +1955,12 @@ function prepareRenderItem(
           align: textPayload.align,
           valign: textPayload.valign,
           margin: textPayload.margin,
-          wrap: true,
+          wrap: textPayload.wrap !== false,
           // See note in the bg-image branch: spAutoFit collapses the
           // box. Disable when the alignment branch flagged the box as
-          // intentionally larger than its text.
-          autoFit: !textPayload.intentionalSize,
+          // intentionally larger than its text — and also under wrap=none
+          // (where LibreOffice mis-anchors the resized shape).
+          autoFit: !textPayload.intentionalSize && textPayload.wrap !== false,
           vert: writingModeVert,
         };
         items.push({

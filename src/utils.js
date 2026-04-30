@@ -1110,8 +1110,17 @@ export function getTextStyle(style, scale) {
   const hasUnderline = decoration.includes('underline');
   const hasLineThrough = decoration.includes('line-through');
 
+  // Carry CSS color alpha through as PPTX text transparency. Without this a
+  // decorative "rgba(...,0.10)" run renders fully opaque — see the pr-num
+  // background numbers in tests/fidelity/cases/quantyca slide 35.
+  const textTransparency =
+    typeof colorObj.opacity === 'number' && colorObj.opacity < 1
+      ? Math.round((1 - colorObj.opacity) * 100)
+      : 0;
+
   return {
     color: colorObj.hex || '000000',
+    ...(textTransparency > 0 ? { transparency: textTransparency } : {}),
     fontFace: resolveFontFaceList(style.fontFamily),
     fontSize: Number((fontSizePx * 0.75 * scale).toFixed(1)),
     bold: parseInt(style.fontWeight) >= 600,
