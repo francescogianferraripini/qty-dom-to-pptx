@@ -21,7 +21,10 @@ Note: The library measures computed layout from the browser (getBoundingClientRe
 - background-position, background-size (basic handling in gradients)
 - color, opacity
 - border, border-_-color, border-_-width, border-radius (per-corner)
-- box-shadow (outer shadows mapped to PPTX outer shadows)
+- border with fully-transparent color (preserves layout, skips stroke)
+- box-shadow: outer single layer maps to native PPTX shadow; inset and
+  multi-layer shadows are composited as layered PNGs (alpha-accurate)
+- outline / outline-offset / outline-width / outline-style (solid/dashed/dotted)
 - filter: blur() (soft-edge rendering via SVG)
 - backdrop-filter: blur() (simulated via html2canvas snapshot)
 - transform: rotate() (extraction of rotation angle)
@@ -45,6 +48,10 @@ These classes are examples; dom-to-pptx reads computed styles, so any combinatio
 
 - Complex CSS animations/transitions are not exported — only the current computed visual state is captured.
 - Some advanced CSS features (CSS variables used as colors, filters beyond blur) may not map 1:1.
+- Wide-gamut color spaces (`oklch`, `lab`, `display-p3`, `color(srgb …)`) are
+  resolved through a hidden canvas, which silently clips them to sRGB. The
+  PPTX color is the closest sRGB approximation. Out-of-gamut hues (e.g. a
+  vivid `oklch` red) will look noticeably duller than the source.
 - For images to be processed via canvas (rounded images), the source must be CORS-accessible (`Access-Control-Allow-Origin` header) or the image will be skipped or rendered as-is.
 
 ### Recommended Patterns & Best Practices

@@ -33,9 +33,19 @@ export async function writeReport(reportPath, results) {
           `<br><span class="raw">edge ${(r.edgePercent ?? 0).toFixed(1)}% · color ${(r.colorPercent ?? 0).toFixed(1)}%</span>` +
           `<br><span class="raw">${r.percent.toFixed(2)}% raw (${r.mismatched}/${r.total})</span>` +
           `<br><span class="raw">budget ${budget.toFixed(0)}%</span>`;
+      const liveLink = r.casePath
+        ? `<a href="${escapeHtml(r.casePath)}" target="_blank">live</a>`
+        : '';
+      const pptxLink = r.pptxPath
+        ? `<a href="${escapeHtml(r.pptxPath)}">pptx</a>`
+        : '';
+      const links =
+        liveLink || pptxLink
+          ? `<div class="links">${[liveLink, pptxLink].filter(Boolean).join(' · ')}</div>`
+          : '';
       return `
       <tr class="${cls}">
-        <td class="name">${escapeHtml(r.name)}</td>
+        <td class="name">${escapeHtml(r.name)}${links}</td>
         <td class="stat">${stat}</td>
         <td>${r.sourcePng ? `<img src="${escapeHtml(r.sourcePng)}" />` : ''}</td>
         <td>${r.pptxPng ? `<img src="${escapeHtml(r.pptxPng)}" />` : ''}</td>
@@ -57,6 +67,9 @@ export async function writeReport(reportPath, results) {
   th, td { border: 1px solid #e0e0e0; padding: 8px; text-align: left; vertical-align: top; }
   th { background: #f5f5f5; }
   td.name { font-family: monospace; white-space: nowrap; }
+  td.name .links { font-size: 11px; margin-top: 4px; font-family: monospace; }
+  td.name .links a { color: #1565c0; text-decoration: none; }
+  td.name .links a:hover { text-decoration: underline; }
   td.stat { font-family: monospace; white-space: nowrap; }
   td.stat .raw { color: #888; font-size: 11px; }
   img { max-width: 320px; height: auto; display: block; }

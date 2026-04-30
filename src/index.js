@@ -11,7 +11,11 @@ import {
   parseColor,
   getTextStyle,
   isTextContainer,
-  getVisibleShadow,
+  parseShadowList,
+  shadowLayerToPptx,
+  composeOuterShadows,
+  composeInsetShadows,
+  getCornerRadii,
   generateGradientSVG,
   getRotation,
   getWritingModeVert,
@@ -40,6 +44,44 @@ import { getProcessedImage } from './image-processor.js';
 
 const PPI = 96;
 const PX_TO_INCH = 1 / PPI;
+
+/**
+ * Phase 2 multi-shadow planner. Reads box-shadow into a list of layers and
+ * decides how to render them in PPTX:
+ *   - 0 layers           → no shadow.
+ *   - 1 outer (no inset) → native pptxgenjs `shadow:` option (existing path).
+ *   - 1 inner (no outer) → native `shadow:` with type 'inner'.
+ *   - everything else    → composite outer halo behind shape and/or inner
+ *                          halo above shape, both as PNG images. The native
+ *                          shape carries no shadow option in this branch.
+ *
+ * Returns `{ primaryShadow, outerImage, innerImage }`. `outerImage` and
+ * `innerImage` are `{ dataUrl, paddingPx } | null`. paddingPx is in CSS px.
+ */
+function planShadows(shadowStr, widthPx, heightPx, radii, scale) {
+  const list = parseShadowList(shadowStr);
+  if (!list.length) return { primaryShadow: null, outerImage: null, innerImage: null };
+  const outer = list.filter((s) => !s.inset);
+  const inner = list.filter((s) => s.inset);
+  let primary = null;
+  let outerToComp = outer;
+  // Inset shadows always go through the canvas-composite path. PowerPoint
+  // accepts <a:innerShdw> in the OOXML, but LibreOffice's PPTX renderer drops
+  // it silently — we'd ship a slide that looks correct in PowerPoint and
+  // wrong in every other viewer. Compositing is portable.
+  const innerToComp = inner;
+  if (outer.length === 1 && inner.length === 0) {
+    primary = shadowLayerToPptx(outer[0], scale);
+    outerToComp = [];
+  }
+  const outerImage = outerToComp.length
+    ? composeOuterShadows(widthPx, heightPx, radii, outerToComp)
+    : null;
+  const innerImage = innerToComp.length
+    ? composeInsetShadows(widthPx, heightPx, radii, innerToComp)
+    : null;
+  return { primaryShadow: primary, outerImage, innerImage };
+}
 
 /**
  * Main export function.
@@ -471,11 +513,38 @@ function pseudoToRenderItems(measured, layoutConfig, pptx, parentZ, domOrder) {
     radii.tl !== radii.tr || radii.tl !== radii.br || radii.tl !== radii.bl;
   const minDim = Math.min(widthPx, heightPx);
 
-  const shadow = getVisibleShadow(style.boxShadow, layoutConfig.styleScale);
+  const shadowPlan = planShadows(
+    style.boxShadow,
+    widthPx,
+    heightPx,
+    radii,
+    layoutConfig.styleScale
+  );
+  const shadow = shadowPlan.primaryShadow;
+  const hasShadowVisual = !!(shadow || shadowPlan.outerImage || shadowPlan.innerImage);
 
   const items = [];
   let job = null;
   let zCursor = baseZ;
+
+  // 1a. Outer multi-shadow halo behind the shape.
+  if (shadowPlan.outerImage) {
+    const padIn = shadowPlan.outerImage.paddingPx * PX_TO_INCH * layoutConfig.styleScale;
+    items.push({
+      type: 'image',
+      zIndex: zCursor,
+      domOrder,
+      options: {
+        data: shadowPlan.outerImage.dataUrl,
+        x: x - padIn,
+        y: y - padIn,
+        w: w + padIn * 2,
+        h: h + padIn * 2,
+        rotate: rotation,
+      },
+    });
+    zCursor++;
+  }
 
   // 1. Background image (raster URL) — async fetch + clip to radii.
   if (hasBgUrl) {
@@ -541,7 +610,7 @@ function pseudoToRenderItems(measured, layoutConfig, pptx, parentZ, domOrder) {
       options: { data: shapeSvg, x, y, w, h, rotate: rotation },
     });
     zCursor++;
-  } else if (hasBg || hasUniformBorder || shadow) {
+  } else if (hasBg || hasUniformBorder || hasShadowVisual) {
     // 4. Native rect / roundRect / ellipse.
     let shapeType = pptx.ShapeType.rect;
     let rectRadius;
@@ -574,6 +643,21 @@ function pseudoToRenderItems(measured, layoutConfig, pptx, parentZ, domOrder) {
       domOrder,
       shapeType,
       options: opts,
+    });
+    zCursor++;
+  }
+
+  // 4b. Inner multi-shadow halo above the shape (clipped to shape interior).
+  if (shadowPlan.innerImage) {
+    items.push({
+      type: 'image',
+      zIndex: zCursor,
+      domOrder,
+      options: {
+        data: shadowPlan.innerImage.dataUrl,
+        x, y, w, h,
+        rotate: rotation,
+      },
     });
     zCursor++;
   }
@@ -930,7 +1014,11 @@ function prepareRenderItem(
 
     if (hasShadow || borderRadius > 0 || hasBg) {
       const transparency = (1 - bgColor.opacity) * 100;
-      const shadow = hasShadow ? getVisibleShadow(shadowStr, config.styleScale) : null;
+      const tableRadii = getCornerRadii(style, widthPx, heightPx);
+      const shadowPlan = hasShadow
+        ? planShadows(shadowStr, widthPx, heightPx, tableRadii, config.styleScale)
+        : { primaryShadow: null, outerImage: null, innerImage: null };
+      const shadow = shadowPlan.primaryShadow;
       let shapeType = pptx.ShapeType.rect;
       let rectRadius = 0;
 
@@ -938,6 +1026,23 @@ function prepareRenderItem(
         shapeType = pptx.ShapeType.roundRect;
         let cappedRadiusPx = Math.min(borderRadius, Math.min(widthPx, heightPx) / 2);
         rectRadius = cappedRadiusPx * PX_TO_INCH * config.styleScale;
+      }
+
+      // Outer multi-shadow halo behind the backing shape.
+      if (shadowPlan.outerImage) {
+        const padIn = shadowPlan.outerImage.paddingPx * PX_TO_INCH * config.styleScale;
+        tableItems.unshift({
+          type: 'image',
+          zIndex: effectiveZIndex,
+          domOrder,
+          options: {
+            data: shadowPlan.outerImage.dataUrl,
+            x: x - padIn,
+            y: y - padIn,
+            w: unrotatedW + padIn * 2,
+            h: unrotatedH + padIn * 2,
+          },
+        });
       }
 
       // Add a backing shape item before the table
@@ -956,6 +1061,24 @@ function prepareRenderItem(
           rectRadius,
         },
       });
+
+      // Inner multi-shadow halo above the backing shape (clipped to shape).
+      if (shadowPlan.innerImage) {
+        // Insert just after the backing shape, before the table cells, so it
+        // overlays the fill but stays under cell text.
+        tableItems.splice(1, 0, {
+          type: 'image',
+          zIndex: effectiveZIndex,
+          domOrder,
+          options: {
+            data: shadowPlan.innerImage.dataUrl,
+            x,
+            y,
+            w: unrotatedW,
+            h: unrotatedH,
+          },
+        });
+      }
     }
 
     return {
@@ -1359,6 +1482,10 @@ function prepareRenderItem(
 
   const shadowStr = style.boxShadow;
   const hasShadow = shadowStr && shadowStr !== 'none';
+  const cornerRadiiPx = getCornerRadii(style, widthPx, heightPx);
+  const shadowPlan = hasShadow
+    ? planShadows(shadowStr, widthPx, heightPx, cornerRadiiPx, config.styleScale)
+    : { primaryShadow: null, outerImage: null, innerImage: null };
   const softEdge = getSoftEdges(style.filter, config.styleScale);
 
   let isImageWrapper = false;
@@ -1469,10 +1596,21 @@ function prepareRenderItem(
     });
 
     if (textParts.length > 0) {
-      const { align, valign, intentionalSize } = resolveContainerAlignment(style, heightPx);
+      const { align, valign, intentionalSize, lineHeightVcenter } =
+        resolveContainerAlignment(style, heightPx);
 
       let padding = getPadding(style, config.styleScale);
       if (align === 'center' && valign === 'middle') padding = [0, 0, 0, 0];
+
+      // The line-height vcenter trick uses line-height as the box-filler.
+      // Keeping it as a paragraph lineSpacing would stretch the line-box
+      // and push the glyph baseline to the bottom of the shape — drop it
+      // so PPTX vcenter measures the actual glyph box.
+      if (lineHeightVcenter) {
+        for (const part of textParts) {
+          if (part.options) delete part.options.lineSpacing;
+        }
+      }
 
       textPayload = { text: textParts, align, valign, inset: padding, intentionalSize };
     }
@@ -1607,6 +1745,24 @@ function prepareRenderItem(
     const transparency = (1 - finalAlpha) * 100;
     const useSolidFill = bgColorObj.hex && !isImageWrapper;
 
+    // Outer multi-shadow halo behind the shape.
+    if (shadowPlan.outerImage) {
+      const padIn = shadowPlan.outerImage.paddingPx * PX_TO_INCH * config.styleScale;
+      items.push({
+        type: 'image',
+        zIndex,
+        domOrder,
+        options: {
+          data: shadowPlan.outerImage.dataUrl,
+          x: x - padIn,
+          y: y - padIn,
+          w: w + padIn * 2,
+          h: h + padIn * 2,
+          rotate: rotation,
+        },
+      });
+    }
+
     if (hasPartialBorderRadius && useSolidFill && !textPayload) {
       const shapeSvg = generateCustomShapeSVG(
         widthPx,
@@ -1640,7 +1796,7 @@ function prepareRenderItem(
         line: hasUniformBorder ? borderInfo.options : null,
       };
 
-      if (hasShadow) shapeOpts.shadow = getVisibleShadow(shadowStr, config.styleScale);
+      if (shadowPlan.primaryShadow) shapeOpts.shadow = shadowPlan.primaryShadow;
 
       // 1. Calculate dimensions first
       const minDimension = Math.min(widthPx, heightPx);
@@ -1706,6 +1862,74 @@ function prepareRenderItem(
           shapeType,
           options: shapeOpts,
         });
+      }
+    }
+
+    // Inner multi-shadow halo above the shape (clipped to shape interior).
+    if (shadowPlan.innerImage) {
+      items.push({
+        type: 'image',
+        zIndex,
+        domOrder,
+        options: {
+          data: shadowPlan.innerImage.dataUrl,
+          x, y, w, h,
+          rotate: rotation,
+        },
+      });
+    }
+
+    // CSS `outline` — a non-space-taking ring outside the border edge,
+    // offset by `outline-offset`. Emit as a separate non-filled shape.
+    {
+      const outlineWidthPx = parseFloat(style.outlineWidth) || 0;
+      const outlineStyle = style.outlineStyle;
+      if (
+        outlineWidthPx > 0 &&
+        outlineStyle &&
+        outlineStyle !== 'none' &&
+        outlineStyle !== 'hidden'
+      ) {
+        const outlineColor = parseColor(style.outlineColor);
+        if (outlineColor.hex && outlineColor.opacity > 0) {
+          const offsetPx = parseFloat(style.outlineOffset) || 0;
+          // Path centerline sits at offset + width/2 outside the border edge.
+          const inflatePx = offsetPx + outlineWidthPx / 2;
+          const inflateIn = inflatePx * PX_TO_INCH * config.styleScale;
+          const dashMap = { solid: 'solid', dashed: 'dash', dotted: 'dot' };
+          const lineOpts = {
+            color: outlineColor.hex,
+            width: outlineWidthPx * 0.75 * config.styleScale,
+            transparency: (1 - outlineColor.opacity) * 100,
+            dashType: dashMap[outlineStyle] || 'solid',
+          };
+          const outlineOpts = {
+            x: x - inflateIn,
+            y: y - inflateIn,
+            w: w + inflateIn * 2,
+            h: h + inflateIn * 2,
+            rotate: rotation,
+            fill: { type: 'none' },
+            line: lineOpts,
+          };
+          let outlineShape = pptx.ShapeType.rect;
+          // Match the rounded corner: outline radius = border-radius + offset
+          // + width/2 along the centerline. Ellipse if the inner shape is one.
+          const baseRadiusPx =
+            parseFloat(style.borderRadius) || 0;
+          if (baseRadiusPx > 0) {
+            outlineShape = pptx.ShapeType.roundRect;
+            const outlineRadiusPx = Math.max(0, baseRadiusPx + offsetPx + outlineWidthPx / 2);
+            outlineOpts.rectRadius = outlineRadiusPx * PX_TO_INCH * config.styleScale;
+          }
+          items.push({
+            type: 'shape',
+            zIndex: zIndex + 1,
+            domOrder,
+            shapeType: outlineShape,
+            options: outlineOpts,
+          });
+        }
       }
     }
 

@@ -705,29 +705,45 @@ function mapDashType(style) {
  * Analyzes computed border styles and determines the rendering strategy.
  */
 export function getBorderInfo(style, scale) {
+  const topColor = parseColor(style.borderTopColor);
+  const rightColor = parseColor(style.borderRightColor);
+  const bottomColor = parseColor(style.borderBottomColor);
+  const leftColor = parseColor(style.borderLeftColor);
   const top = {
     width: parseFloat(style.borderTopWidth) || 0,
     style: style.borderTopStyle,
-    color: parseColor(style.borderTopColor).hex,
+    color: topColor.hex,
+    opacity: topColor.opacity,
   };
   const right = {
     width: parseFloat(style.borderRightWidth) || 0,
     style: style.borderRightStyle,
-    color: parseColor(style.borderRightColor).hex,
+    color: rightColor.hex,
+    opacity: rightColor.opacity,
   };
   const bottom = {
     width: parseFloat(style.borderBottomWidth) || 0,
     style: style.borderBottomStyle,
-    color: parseColor(style.borderBottomColor).hex,
+    color: bottomColor.hex,
+    opacity: bottomColor.opacity,
   };
   const left = {
     width: parseFloat(style.borderLeftWidth) || 0,
     style: style.borderLeftStyle,
-    color: parseColor(style.borderLeftColor).hex,
+    color: leftColor.hex,
+    opacity: leftColor.opacity,
   };
 
   const hasAnyBorder = top.width > 0 || right.width > 0 || bottom.width > 0 || left.width > 0;
   if (!hasAnyBorder) return { type: 'none' };
+
+  // Fully-transparent borders: many CSS resets place `border: 1px solid
+  // transparent` so :hover / :focus can flip color without shifting layout.
+  // The layout space is already baked into getBoundingClientRect, so we skip
+  // the stroke entirely. Treat as no-border for downstream consumers.
+  const allTransparent =
+    top.opacity === 0 && right.opacity === 0 && bottom.opacity === 0 && left.opacity === 0;
+  if (allTransparent) return { type: 'none' };
 
   // Check if all sides are uniform
   const isUniform =
@@ -747,7 +763,7 @@ export function getBorderInfo(style, scale) {
       options: {
         width: top.width * 0.75 * scale,
         color: top.color,
-        transparency: (1 - parseColor(style.borderTopColor).opacity) * 100,
+        transparency: (1 - topColor.opacity) * 100,
         dashType: mapDashType(top.style),
       },
     };
@@ -838,14 +854,49 @@ export function generateCustomShapeSVG(w, h, color, opacity, radii) {
 }
 
 // --- REPLACE THE EXISTING parseColor FUNCTION ---
+// Sentinel hex used to detect when a fillStyle assignment was rejected
+// by the browser (invalid CSS color). Picked to be deterministic and
+// extremely unlikely to appear as real content.
+const PARSE_COLOR_SENTINEL = '#01fe02';
+const PARSE_COLOR_SENTINEL_NORMALIZED = '#01fe02';
+
 export function parseColor(str) {
-  if (!str || str === 'transparent' || str.trim() === 'rgba(0, 0, 0, 0)') {
+  if (!str || str === 'transparent' || (typeof str === 'string' && str.trim() === 'rgba(0, 0, 0, 0)')) {
     return { hex: null, opacity: 0 };
   }
 
+  // Pre-normalize the rare 16-digit hex form (#rrrrggggbbbbaaaa, 4 digits per
+  // channel) before handing to the browser — Chromium rejects it. Take the
+  // high byte of each channel.
+  let probe = str;
+  if (typeof probe === 'string') {
+    const trimmed = probe.trim();
+    if (/^#[0-9a-fA-F]{16}$/.test(trimmed)) {
+      const r = trimmed.slice(1, 3);
+      const g = trimmed.slice(5, 7);
+      const b = trimmed.slice(9, 11);
+      const a = trimmed.slice(13, 15);
+      probe = `#${r}${g}${b}${a}`;
+    } else if (/^#[0-9a-fA-F]{12}$/.test(trimmed)) {
+      // Legacy 4-digit-per-channel without alpha (#rrrrggggbbbb).
+      const r = trimmed.slice(1, 3);
+      const g = trimmed.slice(5, 7);
+      const b = trimmed.slice(9, 11);
+      probe = `#${r}${g}${b}`;
+    }
+  }
+
   const ctx = getCtx();
-  ctx.fillStyle = str;
+  // Detect parse failure: if assignment to fillStyle is rejected, fillStyle
+  // keeps its prior value. Seed a sentinel so the rejected case is
+  // identifiable instead of silently returning the previous color (typically
+  // black, which the engine would then ship as a real, wrong color).
+  ctx.fillStyle = PARSE_COLOR_SENTINEL;
+  ctx.fillStyle = probe;
   const computed = ctx.fillStyle;
+  if (computed === PARSE_COLOR_SENTINEL_NORMALIZED) {
+    return { hex: null, opacity: 0, parseFailed: true };
+  }
 
   // 1. Handle Hex Output (e.g. #ff0000) - Fast Path
   if (computed.startsWith('#')) {
@@ -882,7 +933,8 @@ export function parseColor(str) {
   }
 
   // 3. Fallback: Browser returned a format we don't parse (oklch, lab, color(srgb...), etc.)
-  // Use Canvas API to convert to sRGB
+  // Use Canvas API to convert to sRGB. Note: this clips wide-gamut colors to
+  // sRGB — see SUPPORTED.md.
   ctx.clearRect(0, 0, 1, 1);
   ctx.fillRect(0, 0, 1, 1);
   const data = ctx.getImageData(0, 0, 1, 1).data;
@@ -1091,6 +1143,14 @@ const vertMap = (v) => {
  * line-height vcenter pattern). When set, callers should disable
  * pptxgenjs `autoFit: true` (which emits `<a:spAutoFit/>` and resizes
  * the shape down to text) so the declared box dimensions survive.
+ *
+ * `lineHeightVcenter` is true when valign='middle' was inferred from
+ * the legacy `line-height === height` trick. The matching `lineSpacing`
+ * on the text runs (set by `getTextStyle` from `line-height`) would
+ * otherwise stretch the line-box to the full shape height and push the
+ * baseline to its bottom — callers should drop `lineSpacing` from each
+ * run so PPTX's vertical centering measures the glyph box, not the
+ * stretched line-box.
  */
 export function resolveContainerAlignment(style, heightPx) {
   const display = style.display || '';
@@ -1107,6 +1167,7 @@ export function resolveContainerAlignment(style, heightPx) {
 
   let valign = 'top';
   let intentionalSize = false;
+  let lineHeightVcenter = false;
 
   // computed-style getters resolve `place-items` / `place-content`
   // shorthands to their long-hand pairs, so reading align-items /
@@ -1152,10 +1213,11 @@ export function resolveContainerAlignment(style, heightPx) {
     ) {
       valign = 'middle';
       intentionalSize = true;
+      lineHeightVcenter = true;
     }
   }
 
-  return { align, valign, intentionalSize };
+  return { align, valign, intentionalSize, lineHeightVcenter };
 }
 
 export function getWritingModeVert(writingMode, textOrientation) {
@@ -1277,35 +1339,304 @@ function inlineSvgStyles(source, target) {
   }
 }
 
-export function getVisibleShadow(shadowStr, scale) {
-  if (!shadowStr || shadowStr === 'none') return null;
-  const shadows = shadowStr.split(/,(?![^()]*\))/);
-  for (let s of shadows) {
-    s = s.trim();
-    if (s.startsWith('rgba(0, 0, 0, 0)')) continue;
-    const match = s.match(
-      /(rgba?\([^)]+\)|#[0-9a-fA-F]+)\s+(-?[\d.]+)px\s+(-?[\d.]+)px\s+([\d.]+)px/
-    );
-    if (match) {
-      const colorStr = match[1];
-      const x = parseFloat(match[2]);
-      const y = parseFloat(match[3]);
-      const blur = parseFloat(match[4]);
-      const distance = Math.sqrt(x * x + y * y);
-      let angle = Math.atan2(y, x) * (180 / Math.PI);
-      if (angle < 0) angle += 360;
-      const colorObj = parseColor(colorStr);
-      return {
-        type: 'outer',
-        angle: angle,
-        blur: blur * 0.75 * scale,
-        offset: distance * 0.75 * scale,
-        color: colorObj.hex || '000000',
-        opacity: colorObj.opacity,
-      };
+/**
+ * Tokenize a single comma-separated box-shadow layer into typed parts.
+ * Handles parenthesized color tokens (rgba(...), oklch(...)) as a unit.
+ */
+function tokenizeShadowLayer(layer) {
+  const tokens = [];
+  let buf = '';
+  let depth = 0;
+  for (let i = 0; i < layer.length; i++) {
+    const ch = layer[i];
+    if (ch === '(') {
+      depth++;
+      buf += ch;
+    } else if (ch === ')') {
+      depth--;
+      buf += ch;
+    } else if (/\s/.test(ch) && depth === 0) {
+      if (buf) {
+        tokens.push(buf);
+        buf = '';
+      }
+    } else {
+      buf += ch;
     }
   }
-  return null;
+  if (buf) tokens.push(buf);
+  return tokens;
+}
+
+/**
+ * Parse a CSS box-shadow value into an array of layers. Each layer is
+ * `{ inset, x, y, blur, spread, color, opacity }` with raw px values and
+ * the color resolved through parseColor. Layers whose color resolves to
+ * fully transparent are dropped — they have no visual effect.
+ */
+export function parseShadowList(shadowStr) {
+  if (!shadowStr || shadowStr === 'none') return [];
+  const layers = shadowStr.split(/,(?![^()]*\))/);
+  const out = [];
+  for (const raw of layers) {
+    const trimmed = raw.trim();
+    if (!trimmed) continue;
+    const tokens = tokenizeShadowLayer(trimmed);
+    let inset = false;
+    const lengths = [];
+    let colorToken = null;
+    for (const tok of tokens) {
+      if (tok === 'inset') {
+        inset = true;
+        continue;
+      }
+      // A length token: optional sign, digits, optional decimal, optional unit.
+      // We only honor px (computed styles always normalize to px anyway).
+      if (/^-?(\d*\.\d+|\d+)(px)?$/.test(tok)) {
+        lengths.push(parseFloat(tok));
+      } else {
+        colorToken = tok;
+      }
+    }
+    if (lengths.length < 2) continue;
+    const [x, y, blur = 0, spread = 0] = lengths;
+    const colorObj = colorToken ? parseColor(colorToken) : { hex: '000000', opacity: 1 };
+    if (!colorObj.hex || colorObj.opacity === 0) continue;
+    out.push({
+      inset,
+      x,
+      y,
+      blur,
+      spread,
+      color: colorObj.hex,
+      opacity: colorObj.opacity,
+    });
+  }
+  return out;
+}
+
+/**
+ * Convert a single parsed shadow layer to the legacy PPTX-style shadow
+ * option that pptxgenjs accepts on `shape.shadow`. Outer/inset is mapped
+ * to type 'outer' / 'inner'.
+ */
+export function shadowLayerToPptx(layer, scale) {
+  const distance = Math.sqrt(layer.x * layer.x + layer.y * layer.y);
+  let angle = Math.atan2(layer.y, layer.x) * (180 / Math.PI);
+  if (angle < 0) angle += 360;
+  return {
+    type: layer.inset ? 'inner' : 'outer',
+    angle,
+    blur: layer.blur * 0.75 * scale,
+    offset: distance * 0.75 * scale,
+    color: layer.color,
+    opacity: layer.opacity,
+  };
+}
+
+export function getVisibleShadow(shadowStr, scale) {
+  const list = parseShadowList(shadowStr);
+  if (!list.length) return null;
+  return shadowLayerToPptx(list[0], scale);
+}
+
+/**
+ * Compute per-corner radii in CSS px, resolving % to the smaller dimension.
+ */
+export function getCornerRadii(style, widthPx, heightPx) {
+  const minDim = Math.min(widthPx, heightPx);
+  const parse = (v) => {
+    if (!v) return 0;
+    const s = String(v);
+    if (s.includes('%')) return (parseFloat(s) / 100) * minDim;
+    return parseFloat(s) || 0;
+  };
+  return {
+    tl: parse(style.borderTopLeftRadius),
+    tr: parse(style.borderTopRightRadius),
+    br: parse(style.borderBottomRightRadius),
+    bl: parse(style.borderBottomLeftRadius),
+  };
+}
+
+function tracePath(ctx, x, y, w, h, radii) {
+  const tl = Math.max(0, Math.min(radii.tl, w / 2, h / 2));
+  const tr = Math.max(0, Math.min(radii.tr, w / 2, h / 2));
+  const br = Math.max(0, Math.min(radii.br, w / 2, h / 2));
+  const bl = Math.max(0, Math.min(radii.bl, w / 2, h / 2));
+  ctx.moveTo(x + tl, y);
+  ctx.lineTo(x + w - tr, y);
+  if (tr > 0) ctx.quadraticCurveTo(x + w, y, x + w, y + tr);
+  ctx.lineTo(x + w, y + h - br);
+  if (br > 0) ctx.quadraticCurveTo(x + w, y + h, x + w - br, y + h);
+  ctx.lineTo(x + bl, y + h);
+  if (bl > 0) ctx.quadraticCurveTo(x, y + h, x, y + h - bl);
+  ctx.lineTo(x, y + tl);
+  if (tl > 0) ctx.quadraticCurveTo(x, y, x + tl, y);
+}
+
+function hexToRgbCss(hex, opacity) {
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  return `rgba(${r},${g},${b},${opacity})`;
+}
+
+/**
+ * Compose multiple OUTER box-shadow layers into a single PNG to be placed
+ * behind the shape. Returns `{ dataUrl, paddingPx }` where paddingPx is the
+ * margin around the shape's rect on each side (the image's outer rect
+ * extends past the shape rect by paddingPx on every side).
+ *
+ * Implementation: render each shadow as a canvas drop-shadow on the rounded
+ * rect, then subtract the shape area so only the shadow halo remains.
+ */
+export function composeOuterShadows(widthPx, heightPx, radii, shadows) {
+  const list = (shadows || []).filter((s) => !s.inset);
+  if (!list.length) return null;
+  let pad = 0;
+  for (const s of list) {
+    pad = Math.max(pad, Math.abs(s.x) + s.blur + Math.max(0, s.spread) + 4);
+    pad = Math.max(pad, Math.abs(s.y) + s.blur + Math.max(0, s.spread) + 4);
+  }
+  pad = Math.ceil(pad);
+  const W = Math.ceil(widthPx + pad * 2);
+  const H = Math.ceil(heightPx + pad * 2);
+  if (typeof document === 'undefined') return null;
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+
+  for (const s of list) {
+    const sw = widthPx + s.spread * 2;
+    const sh = heightPx + s.spread * 2;
+    if (sw <= 0 || sh <= 0) continue;
+    const sr = {
+      tl: Math.max(0, radii.tl + s.spread),
+      tr: Math.max(0, radii.tr + s.spread),
+      br: Math.max(0, radii.br + s.spread),
+      bl: Math.max(0, radii.bl + s.spread),
+    };
+    ctx.save();
+    ctx.shadowColor = hexToRgbCss(s.color, s.opacity);
+    // Canvas shadowBlur ≈ 2 × CSS blur stddev; CSS blur radius is roughly
+    // 2 × stddev, so 1:1 is close enough for visual equivalence.
+    ctx.shadowBlur = s.blur;
+    ctx.shadowOffsetX = s.x;
+    ctx.shadowOffsetY = s.y;
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    tracePath(ctx, pad - s.spread, pad - s.spread, sw, sh, sr);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Cut the shape region — the shape itself is drawn separately and would
+  // otherwise overlap with this image's central solid fill (each layer's
+  // unblurred core).
+  ctx.save();
+  ctx.globalCompositeOperation = 'destination-out';
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  tracePath(ctx, pad, pad, widthPx, heightPx, radii);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  return { dataUrl: canvas.toDataURL('image/png'), paddingPx: pad };
+}
+
+/**
+ * Compose multiple INSET box-shadow layers into a single PNG sized exactly
+ * to the shape rect. The image is intended to be overlaid on top of the
+ * shape (inner shadows render above the shape's fill / border).
+ *
+ * Implementation: clip to the rounded shape, then fill an "outside the
+ * shape" region with the shadow color. Because the fill is offset and
+ * blurred via canvas shadow*, only the shadow halo bleeds into the
+ * clipped interior.
+ */
+export function composeInsetShadows(widthPx, heightPx, radii, shadows) {
+  const list = (shadows || []).filter((s) => s.inset);
+  if (!list.length) return null;
+  if (typeof document === 'undefined') return null;
+  // Render with a margin so the "outer rim" of the inverse-shape path is
+  // actually rasterized inside the canvas — otherwise the browser would
+  // shadow-blur only the rasterized portion, which for a fits-the-canvas
+  // shape is just the four rounded-corner cutouts. With margin, the rim is
+  // a thick belt around the shape and casts a proper inset shadow.
+  let M = 64;
+  for (const s of list) {
+    M = Math.max(M, Math.ceil(Math.abs(s.x) + s.blur + Math.abs(s.spread) + 16));
+  }
+  const W = Math.ceil(widthPx) + M * 2;
+  const H = Math.ceil(heightPx) + M * 2;
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+
+  for (const s of list) {
+    const ix = M + s.spread;
+    const iy = M + s.spread;
+    const iw = widthPx - s.spread * 2;
+    const ih = heightPx - s.spread * 2;
+    if (iw <= 0 || ih <= 0) continue;
+    const ir = {
+      tl: Math.max(0, radii.tl - s.spread),
+      tr: Math.max(0, radii.tr - s.spread),
+      br: Math.max(0, radii.br - s.spread),
+      bl: Math.max(0, radii.bl - s.spread),
+    };
+    ctx.save();
+    ctx.shadowColor = hexToRgbCss(s.color, s.opacity);
+    ctx.shadowBlur = s.blur;
+    ctx.shadowOffsetX = s.x;
+    ctx.shadowOffsetY = s.y;
+    // Opaque fill: canvas multiplies the source pixel alpha into the shadow
+    // alpha. With a translucent fill the shadow ends up doubly-attenuated.
+    ctx.fillStyle = '#000';
+
+    // Even-odd: outer rect (≈ canvas) MINUS the spread-shrunk inner shape
+    // leaves a "frame" of fill around the shape. The frame's inner edge
+    // traces the shape boundary; canvas computes shadow from that edge,
+    // offset and blurred. We mask to the shape afterwards.
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(W, 0);
+    ctx.lineTo(W, H);
+    ctx.lineTo(0, H);
+    ctx.closePath();
+    tracePath(ctx, ix, iy, iw, ih, ir);
+    ctx.closePath();
+    ctx.fill('evenodd');
+    ctx.restore();
+  }
+
+  // Mask to the shape only — everything outside the shape (the frame fill
+  // and any shadow that bled into the margin) is discarded.
+  ctx.save();
+  ctx.globalCompositeOperation = 'destination-in';
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  tracePath(ctx, M, M, widthPx, heightPx, radii);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  // Crop to shape size for the output image. The cropped PNG aligns to the
+  // shape's PPTX rect with no padding.
+  const out = document.createElement('canvas');
+  out.width = Math.ceil(widthPx);
+  out.height = Math.ceil(heightPx);
+  const octx = out.getContext('2d');
+  if (!octx) return null;
+  octx.drawImage(canvas, M, M, Math.ceil(widthPx), Math.ceil(heightPx), 0, 0, out.width, out.height);
+  return { dataUrl: out.toDataURL('image/png'), paddingPx: 0 };
 }
 
 /**

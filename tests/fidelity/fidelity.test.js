@@ -87,6 +87,8 @@ afterAll(async () => {
       sourcePng: r.sourcePngPath ? path.relative(REPORT_DIR, r.sourcePngPath) : '',
       pptxPng: r.pptxPngPath ? path.relative(REPORT_DIR, r.pptxPngPath) : '',
       diffPng: r.diffPngPath ? path.relative(REPORT_DIR, r.diffPngPath) : '',
+      casePath: r.casePath ? path.relative(REPORT_DIR, r.casePath) : '',
+      pptxPath: r.pptxPath ? path.relative(REPORT_DIR, r.pptxPath) : '',
       percent: r.percent ?? 0,
       contentPercent: r.contentPercent ?? 0,
       edgePercent: r.edgePercent ?? 0,
@@ -118,6 +120,8 @@ describe('fidelity harness', async () => {
 
         const pptxPath = path.join(OUTPUT_DIR, `${name}.pptx`);
         await writeFile(pptxPath, pptxBuffer);
+        result.pptxPath = pptxPath;
+        result.casePath = path.join(CASES_DIR, file);
 
         const sourcePngPath = path.join(OUTPUT_DIR, `${name}.source.png`);
         await writeFile(sourcePngPath, sourcePng);

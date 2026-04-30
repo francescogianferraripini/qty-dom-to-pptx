@@ -9,6 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - `dist/dom-to-pptx.mjs` + `.cjs` — library builds. All runtime deps (`pptxgenjs`, `html2canvas`, `jszip`, `fonteditor-core`, `opentype.js`, `pako`) are marked **external** and must be installed by the consumer.
   - `dist/dom-to-pptx.bundle.js` — UMD `domToPptx` global for `<script>` use. Bundles **everything** plus Node polyfills (`rollup-plugin-polyfill-node`, plus `buffer`/`stream-browserify`/`process`/`util`/`events` shims) so the file can run standalone in a browser.
 - `npm run lint` / `npm run format` — ESLint flat config + Prettier. ESLint ignores `dist/**`, downgrades `no-unused-vars` and `no-undef` to warnings, and assumes browser globals.
+- Serve the fidelity report locally: `python3 -m http.server 8001 --bind 0.0.0.0` from `tests/fidelity/` (not `tests/fidelity/report/`), then open http://localhost:8001/report/. The report references `../output/*.png`, `../cases/*.html`, and `../output/*.pptx`, so the server root must be `tests/fidelity/` for those relative paths to resolve.
 - Package manager: lockfile is `pnpm-lock.yaml` but `CONTRIBUTING.md` documents `npm install` / `npm test`. Either works; don't regenerate the other lockfile.
 
 ## Architecture

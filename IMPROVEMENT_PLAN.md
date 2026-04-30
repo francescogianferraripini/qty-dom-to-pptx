@@ -223,7 +223,7 @@ All 50 cases pass under the 65% Quantyca budget / 85% default budget.
 |---|---|---|---|
 | 007-flex-layout | ~70% | **5.93%** | promoted from "documented defect" to regression guard |
 | 031-flex-center-button-row | new | 8.12% | Phase 1.3 regression guard |
-| 032-line-height-vertical-center | new | 44.88% | passes; residual delta is sub-pixel anti-alias edges from larger rendered chrome — visual diff matches |
+| 032-line-height-vertical-center | new | 44.88% → **10.81%** | follow-up fix (see Phase 1.3.1 below) dropped the delta by 34pt |
 | 033-place-items-grid | new | 4.77% | clean |
 | 034-flex-end-alignment | new | 22.33% | passes; right/bottom alignment all correct |
 | 035-flex-column-distributed | new | 18.93% | passes; column-axis swap working |
@@ -237,16 +237,58 @@ The Quantyca canary held within ±0.1pt across all 32 slides — Phase 1.3 doesn
 
 ---
 
-## Phase 2 — Color, shadow, and border primitives
+## Phase 1.3.1 — Line-height vcenter: drop run lineSpacing ✅ landed
 
-Visible defects on almost every styled component.
+`resolveContainerAlignment` already detected the legacy `height === line-height` vcenter pattern and emitted `valign: 'middle'` with `intentionalSize: true` (so `autoFit` was disabled). Case 032's residual 44.88% content delta showed the rest of the bug: `getTextStyle` (`utils.js:979-998`) reads `line-height` and writes it onto every run as `lineSpacing` (in points). For the .strip pattern (`height: 80px; line-height: 80px; font-size: 24px`) that's 60pt of paragraph spacing inside a 60pt-tall textbox. PPTX `valign: 'middle'` then has nothing to center — the line-box already fills the shape — and LibreOffice/PowerPoint default-position the 18pt glyph at the baseline near the *bottom* of that line-box. Visible as: centered bars showed text shifted ~10–15px down, and the left-aligned `.stripLeft` showed text dropped to the bottom-left of its bar.
 
-1. **Multi-shadow stacking.** `getVisibleShadow` (`utils.js:694`) returns after the first non-transparent shadow. Return an *array*; emit one PPTX shadow per layer when the shape API supports it, else composite into a pre-rendered SVG behind the shape.
-2. **Inset shadows.** `utils.js:713` always sets `type: 'outer'`. When the parsed token list contains `inset`, set `type: 'inner'`.
-3. **Outline as stroke.** Read `outline-{width,style,color,offset}` and emit a second non-filled shape inset/outset by `outline-offset` if a real outline channel isn't available.
-4. **Transparent borders.** Today they collapse to zero width because alpha→0 erases them. Either keep the width and skip the stroke, or document the trade-off; many CSS resets rely on `border: 1px solid transparent` for layout.
-5. **8-digit hex with 4-digits-per-channel.** `parseColor` (`utils.js:378-380`) handles `#rrggbbaa` but not `#rrrrggggbbbbaaaa`. Add the branch.
-6. **Wide-gamut color spaces.** `oklch`, `lab`, `display-p3` are normalized through a hidden canvas (`utils.js:400-407`), which silently clips to sRGB. Document the clipping; opt-in `options.preserveWideGamut: true` could keep the original color string for PPTX 2019+ readers, but that's optional. The minimum is to stop emitting black on parse failure (`utils.js:409-412`) and instead fall back to the *unparsed* CSS string for diagnostics.
+Fix:
+- `resolveContainerAlignment` returns a new `lineHeightVcenter: boolean` alongside `intentionalSize` so callers can distinguish "vcenter from flex/grid alignment readout" from "vcenter inferred from the line-height trick".
+- In both text-shape dispatch sites in `prepareRenderItem`, when `lineHeightVcenter` is true the per-run `lineSpacing` (set earlier by `getTextStyle`) is deleted before the run reaches PPTX. PPTX then measures the actual glyph box and centers correctly.
+
+**Validation.**
+- Case 032 dropped 44.88% → **10.81%** content delta (0.72% raw — visually nearly indistinguishable; residual is anti-alias kerning from the two rasterizers).
+- Cases 031/033/034/035 unchanged (they don't trigger the line-height heuristic — flex/grid handles their vcenter via the alignment readout, where keeping `lineSpacing` is still correct for multi-line text).
+- Quantyca canary held within ±0.1pt across all 32 slides.
+- All 66 cases pass.
+
+**Out of scope.** Multi-line text where the user genuinely wants a fat `line-height` *and* an intentionally larger box centered around it. Not a real pattern in the corpus today; if it surfaces, the heuristic can be tightened to require single-line content (it already requires `height ≈ line-height`, which only holds for single-line by construction).
+
+---
+
+## Phase 2 — Color, shadow, and border primitives ✅ landed
+
+All six items shipped together. The full 66-case corpus passes. Phase 2's regression cases moved as follows:
+
+| case | content Δ before | content Δ after | notes |
+|---|---|---|---|
+| 020 multi-shadow-stack | 58% | 33.5% | 3-layer outer halo composited as one PNG; visible ambient + key + mid all present |
+| 021 inset-shadow | 66% → spiked to 84% mid-Phase | 12.4% | `<a:innerShdw>` from pptxgenjs is dropped silently by LibreOffice; switched to canvas composite. Donut fill must be opaque — using the shadow color caused alpha to be doubly attenuated (0.30 × 0.30) |
+| 022 outline-stroke | 81% | 0.78% | non-filled second shape inflated by `outline-offset + width/2`, radius adjusted accordingly |
+| 023 transparent-border | 32% | 32.4% | visual fix landed (.ghost no longer collapses); residual delta is a separate stroke-position vs box-sizing issue on the .ink swatch (Phase 7-ish) |
+
+**1. Multi-shadow stacking.** `getVisibleShadow` (`utils.js`) used to return the first non-transparent shadow only. Replaced with `parseShadowList` (returns an array of `{ inset, x, y, blur, spread, color, opacity }`) plus `composeOuterShadows` and `composeInsetShadows` canvas renderers. New `planShadows` in `index.js` decides:
+   - 0 layers → no shadow.
+   - 1 outer (no inset) → native pptxgenjs `shadow:` option (existing fast path).
+   - everything else → composited PNGs, pushed as image items behind (outer) and above (inset) the shape.
+
+   Wired into all three shadow-emitting sites: pseudo-element shapes, table backings, and the main `prepareRenderItem` shape branch.
+
+**2. Inset shadows.** `box-shadow: inset …` now renders. **Always composited** — pptxgenjs accepts `type: 'inner'` and writes `<a:innerShdw>` to OOXML, but LibreOffice drops it silently and the slide looks correct in PowerPoint, broken in every other viewer. The composite path uses a margined canvas (so the inverse-shape "frame" is actually rasterized), `destination-in` mask after rendering, then crops to the shape rect.
+
+**3. Outline as stroke.** Read `outline-{width,style,color,offset}` in the main shape branch and emit a non-filled `roundRect`/`rect` inflated by `offset + width/2` on each side, with the same rotation, dash-mapped from the CSS style. Outline radius = `border-radius + offset + width/2` (centerline). Skipped for transparent or `none`/`hidden` outlines.
+
+**4. Transparent borders.** `getBorderInfo` now detects `allTransparent` (alpha=0 on every side) and returns `type: 'none'`. Pre-Phase-2 the engine emitted `{ color: null, transparency: 100 }` which pptxgenjs accepted but rendered inconsistently; the rect dimensions already include the border via `getBoundingClientRect`, so skipping the stroke preserves layout exactly.
+
+**5. 8-digit hex variants.** `parseColor` now pre-normalizes the rare 16-char (`#rrrrggggbbbbaaaa`) and 12-char (`#rrrrggggbbbb`) hex forms before handing the string to the browser — Chromium rejects them outright. Each channel is downsampled to its high byte.
+
+**6. Wide-gamut clipping note + parse-failure detection.** `parseColor` now seeds a sentinel hex (`#01fe02`) on `ctx.fillStyle` before assigning the input. If the assignment is rejected (sentinel persists), the function returns `{ hex: null, opacity: 0, parseFailed: true }` instead of silently returning the previous color (typically black). Wide-gamut → sRGB clipping is now documented in `SUPPORTED.md`.
+
+**Cross-cutting fix.** A new `getCornerRadii(style, widthPx, heightPx)` resolves per-corner radii (with `%` against the smaller dimension) into a `{tl, tr, br, bl}` object. Used by the shadow planner so composited shadows match the shape's exact corner geometry, including elliptical-radius and per-corner cases that previously fell back to a single uniform radius.
+
+**Out of scope.**
+- Per-corner radius detection in the multi-shadow composite respects only the simple length form; the `/` elliptical syntax is still resolved as a single radius (Phase 3.3 territory).
+- The shadow planner does not yet detect when a single inset can be expressed via PowerPoint's `<a:innerShdw>` and skip the composite — kept the composite path uniformly because mixed-viewer fidelity matters more than file size.
+- Composite border (mismatched per-side colors) does not yet receive shadow halos — only the uniform-border path does. Rare in real decks.
 
 ---
 
@@ -356,7 +398,8 @@ Phases 0, 1, 1.1 re-validation, 1.2, the opacity:0 skip, and Phase 1.3 have ship
 | 6.5 | Harness: serve cases via local HTTP server ✅ | `127.0.0.1:8001` static server replaces file://; SVG icons + url-background pseudos now round-trip cleanly |
 | 6.6 | Phase 0 addendum — synthetic corpus 19 → 30 ✅ | Cases 020–030 cover Phase 2/3 territory; six clean regression guards, five flag known gaps with 4–66pt budget headroom |
 | 6.7 | Phase 1.3 — flex/grid alignment readout ✅ | Root cause was `autoFit: true` collapsing the shape, not the alignment readout. Disabling autoFit when flex/grid alignment is detected dropped case 007 from ~70% → 5.93%; line-height vcenter detector + grid `place-content` fallback shipped alongside |
-| 7 | 2 (color/shadow/border) | Visible on most decks; isolated changes |
+| 6.8 | Phase 1.3.1 — drop run lineSpacing on line-height vcenter ✅ | The detector emitted valign='middle' but the line-height was still being written as run `lineSpacing`, stretching the line-box to fill the shape and pushing glyphs to the baseline-bottom. Deleting `lineSpacing` when `lineHeightVcenter` fires dropped case 032 from 44.88% → 10.81% |
+| 7 | 2 (color/shadow/border) ✅ | Multi-shadow composite, inset shadow composite, outline-as-stroke, transparent-border preservation, 16-char hex, parse-failure detection. Cases 020/021/022 dropped 24/53/80pt; 023 visual fix landed (residual delta is a separate stroke-position issue) |
 | 8 | 9 (rasterization escape hatch, *minimal*) | Unblocks "ship something acceptable for unsupported CSS" |
 | 9 | 4 (gradients/backgrounds) | Common, currently silently dropped |
 | 10 | 3 (transforms/geometry) | Affects polished decks (rotated badges, custom radii) |
