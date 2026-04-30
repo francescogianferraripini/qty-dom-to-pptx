@@ -886,10 +886,18 @@ function prepareRenderItem(
   const elementOpacity = parseFloat(style.opacity);
   const safeOpacity = isNaN(elementOpacity) ? 1 : elementOpacity;
 
+  // Size from `offsetWidth/Height` (logical pre-transform px). For unrotated
+  // elements this matches `rect.width`, but for elements with their own
+  // `transform: rotate(...)` rect.* returns the axis-aligned bounding box of
+  // the rotated shape — too large for the pre-rotation rectangle we need
+  // before applying `rotate` separately. Convert with `styleScale` (which
+  // folds in ancestor + descendant scale transforms), not the raw fit-scale,
+  // so a `transform: scale(0.6)` ancestor still produces the right visible
+  // width. Position uses rect.* with `scale` (already post-transform).
   const widthPx = node.offsetWidth || rect.width;
   const heightPx = node.offsetHeight || rect.height;
-  const unrotatedW = widthPx * PX_TO_INCH * config.scale;
-  const unrotatedH = heightPx * PX_TO_INCH * config.scale;
+  const unrotatedW = widthPx * PX_TO_INCH * config.styleScale;
+  const unrotatedH = heightPx * PX_TO_INCH * config.styleScale;
   const centerX = rect.left + rect.width / 2;
   const centerY = rect.top + rect.height / 2;
 
@@ -957,7 +965,14 @@ function prepareRenderItem(
 
   if ((node.tagName === 'UL' || node.tagName === 'OL') && !isComplexHierarchy(node)) {
     const listItems = [];
-    const liChildren = Array.from(node.children).filter((c) => c.tagName === 'LI');
+    const liChildren = Array.from(node.children).filter((c) => {
+      if (c.tagName !== 'LI') return false;
+      // Skip LIs the browser is rendering as fully invisible — reveal.js
+      // fragments live in the DOM with opacity:0 / visibility:hidden until
+      // their click index is reached.
+      const cs = window.getComputedStyle(c);
+      return !(cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0');
+    });
 
     liChildren.forEach((child, index) => {
       const liStyle = window.getComputedStyle(child);
@@ -1380,6 +1395,16 @@ function prepareRenderItem(
 
       let rawTextVal = child.nodeType === 3 ? child.nodeValue : child.textContent;
       let nodeStyle = child.nodeType === 1 ? window.getComputedStyle(child) : style;
+      // Skip inline children the browser renders fully invisible (reveal.js
+      // fragment chips inside a text-container parent).
+      if (
+        child.nodeType === 1 &&
+        (nodeStyle.display === 'none' ||
+          nodeStyle.visibility === 'hidden' ||
+          nodeStyle.opacity === '0')
+      ) {
+        return;
+      }
       const wsProcessed = processWhitespace(rawTextVal, nodeStyle.whiteSpace);
       // processWhitespace returns either a string (collapsed modes) or an
       // array of {text}/{breakLine} segments for `pre*` modes that contain

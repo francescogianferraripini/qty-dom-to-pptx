@@ -1571,6 +1571,17 @@ export async function getAutoDetectedFonts(usedFamilies) {
 export function collectTextParts(node, parentStyle, scale) {
   const parts = [];
 
+  // Skip subtrees that the browser is rendering as fully invisible. Reveal.js
+  // fragments, hidden tabs, etc. compute to opacity:0 / visibility:hidden but
+  // still live in the DOM — without this guard the text container path emits
+  // them as visible runs.
+  if (node.nodeType === 1) {
+    const cs = window.getComputedStyle(node);
+    if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') {
+      return parts;
+    }
+  }
+
   // Check for CSS Content (::before) - often used for icons
   if (node.nodeType === 1) {
     const beforeStyle = window.getComputedStyle(node, '::before');

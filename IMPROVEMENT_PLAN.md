@@ -112,7 +112,13 @@ Two of the "still TODO" items above shipped together:
 - Render-queue snapshot tests for a fixture DOM (the plan calls for these, but `prepareRenderItem` builds the queue inside `processSlide` and doesn't currently expose it for inspection — needs a small testing seam).
 - A CI wrapper that fails if any case's `contentPercent` increases >1pt vs. the previous main.
 - Grow the synthetic corpus from 14 → ~30 cases as Phases 2–3 land. (The reveal deck doubles as a real-world canary, but isolated micro-cases are still needed for root-causing regressions.)
-- **Re-validate Phase 1.1 against synthetic case 010.** The cumulative-transform tracker doesn't fix it; either the tracker has a bug, or the synthetic case stresses a different failure mode (likely: the `transform: scale(0.6)` is on a wrapper that's *also* the export root, and `processSlide` reads `getBoundingClientRect()` on the wrapper itself, which returns post-transform dims while children's computed styles are still pre-transform). Either way, re-open as a Phase 1.1 follow-up.
+
+**Phase 1.1 re-validation + opacity:0 skip ✅ landed**
+
+Two follow-ups from the post-Phase-1.2 score snapshot shipped together:
+
+- **Phase 1.1 was reading sizes from `offsetWidth` while reading positions from `rect.left`.** `offsetWidth` is the logical (pre-transform) width, but `getBoundingClientRect().left` is post-ancestor-transform. For case 010 (`transform: scale(0.6)` on the wrapper, `#target` as the export root's child), this combination placed the H1 at `centerX = rect.left + rect.width/2 = 480px` (post-transform) but with `unrotatedW = offsetWidth/96 = 14.67"` (logical), so `x = (centerX/96) - unrotatedW/2 = 5 - 7.33 = -2.33"` — the ~2.3" left-shift the canary flagged. Fix: keep `offsetWidth/Height` (correct for rotated elements, where `rect.*` returns the AABB of the rotated shape and is too large) but convert with `config.styleScale` rather than `config.scale`. `styleScale = scale × ancestorScale × cumulative` already folds in both above-root and below-root transforms, so a logical-px size becomes the right inch size on screen. For unrotated, untransformed cases the math collapses back to the previous `* scale`. Case 010 dropped from ~70% → 20% content delta; case 005 (`transform: rotate`) stayed at 0.5%; no other case moved by >1pt.
+- **`collect()` already skipped `opacity: 0` / `visibility: hidden` / `display: none` elements, but two faster paths bypassed it.** The UL/OL list shortcut in `prepareRenderItem` filters `<li>` children directly without recursing through `collect()`; the in-element text-container loop and the recursive `collectTextParts` (utils.js) likewise iterate children via `childNodes.forEach` and read `child.textContent`. Reveal.js fragments (`.fragment` LIs and SPAN chips) compute to `opacity: 0` + `visibility: hidden` until their click index is reached, so q-08 was shipping all 5 list items and all 5 chips even though the source PNG showed them hidden. Skip added at all three sites; q-08 dropped from ~56% → 35% content delta. Same fix knocks 1–3pt off q-09 through q-18 because every Quantyca content slide has a few hidden fragments that were leaking through. The visible-class detection from reveal print mode still works because `.fragment.visible` resolves opacity to 1 before measurement.
 
 **Why first:** before these landed the only signal was "open PowerPoint and squint." Without a baseline that's robust to background-dominated slides, Phase 1's text fixes and Phase 5's RTL work had no acceptance criterion, and regressions were invisible.
 
@@ -293,7 +299,7 @@ These aren't standalone tasks but should land *with* the phase that first needs 
 
 ## Suggested sequencing
 
-Phases 0, 1, and 1.2 have shipped. The next high-leverage steps are the small Phase 1 follow-ups that the canary surfaced (Phase 1.1 re-validation against synthetic case 010, `opacity: 0` element skip on the export root). After that the harness file:// SVG-loading fix would unblock the visible-but-still-counted-broken hero/divider cluster.
+Phases 0, 1, 1.1 re-validation, 1.2, and the opacity:0 skip have shipped. Next up is Phase 2 (color/shadow/border primitives) and the *minimal* Phase 9 (generalized rasterization fallback behind a `shouldRasterize` predicate).
 
 | Order | Phase / item | Why this slot |
 |---|---|---|
@@ -302,7 +308,7 @@ Phases 0, 1, and 1.2 have shipped. The next high-leverage steps are the small Ph
 | 3 | Phase 0 addendum — switch canary to reveal print mode ✅ | Removed framework-coordination noise from the canary |
 | 4 | Phase 0 addendum — foreground-aware metric ✅ | Replaced raw pixel-% with `contentPercent` (edge + color, block-level) so background-dominated slides stop masking foreground regressions |
 | 5 | Phase 1.2 — decorative pseudo-element boxes ✅ | Corner brand mark, H2 underline, hero/divider full-bleeds, badges, percent-radius dots all translate |
-| 6 | **Phase 1.1 re-validation + `opacity: 0` skip** *(now top of queue)* | Synthetic case 010 still ships content off-canvas; q-08 ships hidden fragments |
+| 6 | Phase 1.1 re-validation + `opacity: 0` skip ✅ | offsetWidth × styleScale fixed case 010; opacity skip in UL/text-container/collectTextParts dropped q-08 by ~21pt |
 | 6.5 | Harness: serve cases via local HTTP server ✅ | `127.0.0.1:8001` static server replaces file://; SVG icons + url-background pseudos now round-trip cleanly |
 | 7 | 2 (color/shadow/border) | Visible on most decks; isolated changes |
 | 8 | 9 (rasterization escape hatch, *minimal*) | Unblocks "ship something acceptable for unsupported CSS" |
