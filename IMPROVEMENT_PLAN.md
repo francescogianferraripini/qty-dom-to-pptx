@@ -292,13 +292,41 @@ All six items shipped together. The full 66-case corpus passes. Phase 2's regres
 
 ---
 
-## Phase 3 — Geometry: transforms, radii, scroll
+## Phase 3 — Geometry: transforms, radii, scroll ✅ landed
 
-1. **Full 2D transform decomposition.** `getRotation` (`utils.js:566`) reads only rotation. Decompose the matrix into translate/scale/rotate/skew (the `decomposeMatrix2D` recipe from CSS Transforms spec); apply translate by adjusting x/y in inches, scale by adjusting w/h, rotate by the existing channel, and skew by either an emulated SVG (small angles) or rasterizing.
-2. **`transform-origin`.** Today rotation pivots around the rect center. Read `transformOrigin` and shift the post-rotation rect so the origin point matches the source. PPTX rotates around the shape center, so we need to compensate the x/y offset.
-3. **Elliptical border-radius.** Parse the `/` form (`10px / 5px`) and per-corner pairs. Generate a custom-geometry SVG via `generateCustomShapeSVG` when radii are non-uniform; PPTX `prstGeom: roundRect` only supports uniform radius.
-4. **Source-element scroll normalization.** `getBoundingClientRect` returns viewport-relative coordinates, so a scrolled container drops content above the fold. At the start of `processSlide`, capture `target.scrollLeft/scrollTop` and add them to the rect math; also temporarily set `scrollTop = 0` if `options.includeOverflow` is true.
-5. **Recursion safety.** Cap `collect()` (`src/index.js:215-265`) at a configurable depth (default 1024) to prevent stack overflow on pathological DOMs.
+All five items shipped together with two new fidelity cases. The full 68-case corpus passes; the two main regression guards (029-elliptical-radius and 030-per-corner-radius) moved as follows:
+
+| case | before | after | notes |
+|---|---|---|---|
+| 029-elliptical-radius (`80px / 24px`) | ~22% | **7.64%** | elliptical SVG path replaces the prstGeom roundRect that picked one axis |
+| 030-per-corner-radius (`8px 64px 8px 64px`) | ~22% | 20.88% | already routed through SVG; residual is anti-alias from the rasterizers |
+| 036-radius-mixed-elliptical (new) | n/a | **1.74%** | per-corner *and* elliptical (`80px 20px 60px 30px / 24px 60px 20px 80px`) |
+| 037-scrolled-container (new) | n/a | 11.59% | scrolled root, default behavior captures the visible viewport |
+
+The Quantyca canary held within ±0.5pt across all 32 slides — Phase 3's wins are concentrated on the new geometry cases, since the deck doesn't lean on elliptical radii or scrolled roots.
+
+**1. Full 2D transform decomposition.** `decomposeMatrix2D(transformStr)` in `utils.js` returns `{tx, ty, sx, sy, rotation, skewX}` via the polar/QR decomposition `M = T(tx, ty) · R(θ) · [[sx, sx·tan(k)], [0, sy]]`. Handles both `matrix(...)` and `matrix3d(...)` forms (taking the 2D submatrix from the latter). `getRotation` is now a thin wrapper. `nodeOwnScale` and `getAncestorScale` continue to use the existing `scaleFromTransform` (which returns uniform scale only) since Phase 1.1's `cumulative` tracker treats scale as uniform — non-uniform scale is rare in real decks. The decomposer surfaces `skewX` so the pipeline can detect it: `hasSkew(transformStr)` returns true past 0.5°. When `prepareRenderItem` sees a skewed element it calls `_warnSkewOnce` (a per-export WeakSet keyed on the node) — PPTX shapes can't represent shear, so the element renders un-skewed and the warning gives users actionable feedback. Translate/scale didn't need code: `getBoundingClientRect()` already accounts for translate, and `cumulative` already folds self-applied scale into `styleScale`.
+
+**2. `transform-origin` compensation.** *No code change needed.* The post-mortem framing assumed PPTX would render the source's rotation pivot directly. It doesn't: the engine reads `(rect.left + rect.width/2, rect.top + rect.height/2)` as the shape center, and for any rotated *rectangle* the AABB returned by `getBoundingClientRect()` is centered on the rotated rectangle's center regardless of what point the rotation pivoted around. PPTX then rotates around the shape's own center, reproducing the same final geometry. Case 028 (rotation around `0 0` corner) lands at **0.42%** content delta — well below the 14% it appeared to threaten before the math was worked through. Documented here so the "open Phase 3.2 item" doesn't reappear; the residual edge cases (skew + non-center origin, perspective + non-center origin) fall through to the skew warning above and Phase 9 rasterization.
+
+**3. Elliptical / per-corner border-radius.** New `getCornerRadiiXY(style, widthPx, heightPx)` returns per-corner elliptical pairs (`{tl: {x, y}, ...}`) with proper rx-vs-width / ry-vs-height percentage resolution. New `isElliptical(radiiXY)` and `isPerCorner(radiiXY)` flag the conditions that need a custom SVG path (PPTX `prstGeom: roundRect` only supports a single uniform circular radius). `generateCustomShapeSVG` and `generateGradientSVG` were extended to accept either scalar `{tl, tr, br, bl}` or elliptical `{tl: {x, y}, ...}` via a shared `normalizeRadiiXY` + `clampRadiiXY` + `buildEllipticalPath` helper trio (clamping per CSS Backgrounds-3 §5.5). All five dispatch sites in `index.js` (pseudo-element solid fill, pseudo-element gradient, main-element solid fill, main-element gradient, background-image SVG) now call these helpers with `radiiXY`. The shadow-composite path (`composeOuterShadows` / `composeInsetShadows`) still consumes scalar radii via a new `radiiXYToScalar` helper that picks the larger axis per corner — punted intentionally per the Phase 2 out-of-scope note.
+
+**4. Source-element scroll normalization.** When the export root has `scrollTop > 0` or `scrollLeft > 0`, default behavior is unchanged (capture the visible viewport — children outside the viewport get negative inches and naturally clip). Setting `options.includeOverflow = true` switches the layout config to (a) use `Math.max(rect.width, root.scrollWidth)` and `Math.max(rect.height, root.scrollHeight)` as the content size and (b) shift the origin to `rootRect.x − scrollLeft` / `rootRect.y − scrollTop`, which back-resolves children to their content-space coordinates and fits the full scrollable area into the slide. Validated by case 037; the scrolled-by-240px viewport renders at 11.59% delta. Above-fold and below-fold items are correctly excluded from the visible region.
+
+**5. Recursion safety.** `collect(node, parentZ, parentCumulative, depth = 0)` now bails when `depth >= MAX_DOM_DEPTH` (default 1024, override via `options.maxDomDepth`). Emits a single console warning per export so users can diagnose missing content from deeply-nested DOMs. Real documents never approach this; the cap exists as a defense against pathological generators.
+
+**Validation cases landed (`tests/fidelity/cases/`)**
+
+- `036-radius-mixed-elliptical` — per-corner *and* elliptical radii in one declaration; the most demanding case for the SVG path generator.
+- `037-scrolled-container` — root with `overflow: auto`, scrolled programmatically before export. Default behavior matches what's on screen.
+
+The pre-existing 026/027/028 (translate / scale-self / origin) all land at <2% content delta — they were already correct, this phase confirms the math holds.
+
+**Out of scope.**
+- Skew compensation in PPTX shapes — fundamentally not representable. A future Phase 9 rasterization predicate could accept skew as a trigger; today we only warn.
+- Non-uniform scale (`sx ≠ sy`). The decomposer reports both axes but `nodeOwnScale` collapses to the geometric mean. No real-world canary uses non-uniform scale; if one surfaces, thread `{sx, sy}` through `styleScale`.
+- `transform-origin` with skew or compound transforms where the AABB-center invariant breaks. Falls through to the skew warning.
+- Shadow halos still approximate elliptical corners with `max(rx, ry)` per corner — kept simple per the Phase 2 punt.
 
 ---
 
@@ -385,7 +413,7 @@ These aren't standalone tasks but should land *with* the phase that first needs 
 
 ## Suggested sequencing
 
-Phases 0, 1, 1.1 re-validation, 1.2, the opacity:0 skip, and Phase 1.3 have shipped. Next up is Phase 2 (color/shadow/border primitives) and the *minimal* Phase 9 (generalized rasterization fallback behind a `shouldRasterize` predicate).
+Phases 0, 1, 1.1 re-validation, 1.2, the opacity:0 skip, 1.3, 2, and 3 have shipped. Next up is the *minimal* Phase 9 (generalized rasterization fallback behind a `shouldRasterize` predicate) so unsupported features (skew, mix-blend-mode, exotic filter values) degrade gracefully, then Phase 4 (gradients/backgrounds).
 
 | Order | Phase / item | Why this slot |
 |---|---|---|
@@ -400,9 +428,9 @@ Phases 0, 1, 1.1 re-validation, 1.2, the opacity:0 skip, and Phase 1.3 have ship
 | 6.7 | Phase 1.3 — flex/grid alignment readout ✅ | Root cause was `autoFit: true` collapsing the shape, not the alignment readout. Disabling autoFit when flex/grid alignment is detected dropped case 007 from ~70% → 5.93%; line-height vcenter detector + grid `place-content` fallback shipped alongside |
 | 6.8 | Phase 1.3.1 — drop run lineSpacing on line-height vcenter ✅ | The detector emitted valign='middle' but the line-height was still being written as run `lineSpacing`, stretching the line-box to fill the shape and pushing glyphs to the baseline-bottom. Deleting `lineSpacing` when `lineHeightVcenter` fires dropped case 032 from 44.88% → 10.81% |
 | 7 | 2 (color/shadow/border) ✅ | Multi-shadow composite, inset shadow composite, outline-as-stroke, transparent-border preservation, 16-char hex, parse-failure detection. Cases 020/021/022 dropped 24/53/80pt; 023 visual fix landed (residual delta is a separate stroke-position issue) |
-| 8 | 9 (rasterization escape hatch, *minimal*) | Unblocks "ship something acceptable for unsupported CSS" |
-| 9 | 4 (gradients/backgrounds) | Common, currently silently dropped |
-| 10 | 3 (transforms/geometry) | Affects polished decks (rotated badges, custom radii) |
+| 8 | 3 (transforms/geometry) ✅ | Elliptical SVG path (case 029: 22%→7.6%), 2D matrix decomposition + skew warning, scroll normalization (`includeOverflow`), recursion depth cap. transform-origin already correct via rect-center invariant — documented, no code |
+| 9 | 9 (rasterization escape hatch, *minimal*) | Unblocks "ship something acceptable for unsupported CSS" — skew, blend modes, exotic filters |
+| 10 | 4 (gradients/backgrounds) | Common, currently silently dropped |
 | 11 | 5 (text richness) | Hyperlinks alone are a frequent ask |
 | 12 | 6 (images/SVG) | Mostly polish; CORS placeholder is the bug |
 | 13 | 7 (tables) | High effort, narrower audience |

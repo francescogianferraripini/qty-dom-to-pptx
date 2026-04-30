@@ -123,4 +123,16 @@ describe('generateCustomShapeSVG', () => {
     );
     expect(svg).toMatchSnapshot();
   });
+
+  it('renders elliptical (rx/ry) corner radii', () => {
+    const svg = decode(
+      generateCustomShapeSVG(480, 200, '1f7a4d', 1, {
+        tl: { x: 80, y: 24 },
+        tr: { x: 80, y: 24 },
+        br: { x: 80, y: 24 },
+        bl: { x: 80, y: 24 },
+      }),
+    );
+    expect(svg).toMatchSnapshot();
+  });
 });

@@ -16,8 +16,12 @@ import {
   composeOuterShadows,
   composeInsetShadows,
   getCornerRadii,
+  getCornerRadiiXY,
+  isElliptical,
+  isPerCorner,
   generateGradientSVG,
   getRotation,
+  hasSkew,
   getWritingModeVert,
   svgToPng,
   svgToSvg,
@@ -44,6 +48,22 @@ import { getProcessedImage } from './image-processor.js';
 
 const PPI = 96;
 const PX_TO_INCH = 1 / PPI;
+
+// Per-element skew warnings. PPTX shapes can't represent CSS skew transforms,
+// so a skewed element renders as its un-skewed rectangle. The warning helps
+// users diagnose visible distortion. WeakSet persists across exports so we
+// don't repeat warnings for the same element on re-runs.
+const _warnedSkew = new WeakSet();
+function _warnSkewOnce(node, transformStr) {
+  if (_warnedSkew.has(node)) return;
+  _warnedSkew.add(node);
+  console.warn(
+    '[dom-to-pptx] CSS skew detected (transform:',
+    transformStr +
+      ') — PPTX shapes cannot represent skew, element will render un-skewed. Rasterize manually if exact match is required.',
+    node
+  );
+}
 
 /**
  * Phase 2 multi-shadow planner. Reads box-shadow into a list of layers and
@@ -265,8 +285,26 @@ async function processSlide(root, slide, pptx, globalOptions = {}) {
   const PPTX_WIDTH_IN = globalOptions._slideWidth || 10;
   const PPTX_HEIGHT_IN = globalOptions._slideHeight || 5.625;
 
-  const contentWidthIn = rootRect.width * PX_TO_INCH;
-  const contentHeightIn = rootRect.height * PX_TO_INCH;
+  // Phase 3.4 — scroll normalization. `getBoundingClientRect()` is viewport-
+  // relative, so a scrolled root puts above-fold children at negative rect.top
+  // (clipped off-slide) and leaves below-fold children at viewport bottom.
+  // Default behavior preserves "export what's visible" semantics: the slide
+  // shows the current scrolled viewport. `options.includeOverflow=true`
+  // captures the FULL scrollable content area: content size becomes
+  // root.scrollWidth/Height and the origin is back-shifted by the current
+  // scroll offsets so above-fold content lands inside the slide.
+  const rootScrollLeft = root.scrollLeft || 0;
+  const rootScrollTop = root.scrollTop || 0;
+  const includeOverflow = !!globalOptions.includeOverflow;
+  const contentWidthPx = includeOverflow
+    ? Math.max(rootRect.width, root.scrollWidth || 0)
+    : rootRect.width;
+  const contentHeightPx = includeOverflow
+    ? Math.max(rootRect.height, root.scrollHeight || 0)
+    : rootRect.height;
+
+  const contentWidthIn = contentWidthPx * PX_TO_INCH;
+  const contentHeightIn = contentHeightPx * PX_TO_INCH;
   const scale = Math.min(PPTX_WIDTH_IN / contentWidthIn, PPTX_HEIGHT_IN / contentHeightIn);
 
   // Compensate for CSS transforms — both ABOVE root (reveal.js wraps the deck
@@ -287,8 +325,11 @@ async function processSlide(root, slide, pptx, globalOptions = {}) {
   const rootStyleScale = scale * ancestorScale;
 
   const layoutConfig = {
-    rootX: rootRect.x,
-    rootY: rootRect.y,
+    // When `includeOverflow` is set, treat the root's content origin (i.e.
+    // where children sit at scrollLeft/scrollTop = 0) as the slide origin so
+    // scrolled-out content maps inside the slide.
+    rootX: includeOverflow ? rootRect.x - rootScrollLeft : rootRect.x,
+    rootY: includeOverflow ? rootRect.y - rootScrollTop : rootRect.y,
     scale: scale,
     styleScale: rootStyleScale,
     ancestorScale: ancestorScale,
@@ -300,8 +341,26 @@ async function processSlide(root, slide, pptx, globalOptions = {}) {
   const asyncTasks = []; // Queue for heavy operations (Images, Canvas)
   let domOrderCounter = 0;
 
+  // Cap recursion to defend against pathological DOMs (deeply-nested
+  // user-generated markup, runaway templates). Each call to `collect`
+  // pushes a stack frame; without a cap, JS engines blow up around 10k.
+  // 1024 is well below the engine limit but high enough that no real
+  // document hits it. Override via `options.maxDomDepth` for testing.
+  const MAX_DOM_DEPTH = globalOptions.maxDomDepth || 1024;
+  let depthOverflowReported = false;
+
   // Sync Traversal Function
-  function collect(node, parentZIndex, parentCumulative) {
+  function collect(node, parentZIndex, parentCumulative, depth = 0) {
+    if (depth >= MAX_DOM_DEPTH) {
+      if (!depthOverflowReported) {
+        console.warn(
+          `[dom-to-pptx] DOM depth exceeded ${MAX_DOM_DEPTH} — bailing out of recursion. ` +
+            `Some content may be missing from the export.`
+        );
+        depthOverflowReported = true;
+      }
+      return;
+    }
     const order = domOrderCounter++;
 
     let currentZ = parentZIndex;
@@ -378,7 +437,7 @@ async function processSlide(root, slide, pptx, globalOptions = {}) {
     // Recurse children synchronously, propagating cumulative transform.
     const childNodes = node.childNodes;
     for (let i = 0; i < childNodes.length; i++) {
-      collect(childNodes[i], currentZ, cumulative);
+      collect(childNodes[i], currentZ, cumulative, depth + 1);
     }
   }
 
@@ -434,6 +493,7 @@ async function processSlide(root, slide, pptx, globalOptions = {}) {
         x: item.options.x,
         y: item.options.y,
         w: item.options.w,
+        h: item.options.h,
         colW: item.tableData.colWidths, // Essential for correct layout
         autoPage: false,
         // Remove default table styles so our extracted CSS applies cleanly
@@ -444,26 +504,16 @@ async function processSlide(root, slide, pptx, globalOptions = {}) {
   }
 }
 
-// Parse per-corner radii, accepting both pixels and percentages (resolved
-// against the box's smaller dimension, matching CSS `border-radius: 50%`
-// for circles).
-function parsePseudoRadii(style, widthPx, heightPx) {
-  const minDim = Math.min(widthPx, heightPx);
-  const parseR = (v) => {
-    if (!v) return 0;
-    const s = String(v);
-    if (s.includes('%')) {
-      const pct = parseFloat(s);
-      return isFinite(pct) ? (pct / 100) * minDim : 0;
-    }
-    const n = parseFloat(s);
-    return isFinite(n) ? n : 0;
-  };
+// Reduce an elliptical-radii object (`{tl: {x, y}, ...}`) to scalar form
+// (single px per corner) for code paths that don't render elliptical arcs —
+// shadow-composite halos, native PPTX `roundRect`, and `tracePath`. Picks
+// the larger of rx/ry per corner so the visible curve isn't undershot.
+function radiiXYToScalar(r) {
   return {
-    tl: parseR(style.borderTopLeftRadius),
-    tr: parseR(style.borderTopRightRadius),
-    br: parseR(style.borderBottomRightRadius),
-    bl: parseR(style.borderBottomLeftRadius),
+    tl: Math.max(r.tl.x, r.tl.y),
+    tr: Math.max(r.tr.x, r.tr.y),
+    br: Math.max(r.br.x, r.br.y),
+    bl: Math.max(r.bl.x, r.bl.y),
   };
 }
 
@@ -508,16 +558,19 @@ function pseudoToRenderItems(measured, layoutConfig, pptx, parentZ, domOrder) {
   const urlMatch = hasBgImage && !hasGradient ? bgImg.match(/url\(['"]?(.*?)['"]?\)/) : null;
   const hasBgUrl = !!urlMatch;
 
-  const radii = parsePseudoRadii(style, widthPx, heightPx);
-  const hasPartialBorderRadius =
-    radii.tl !== radii.tr || radii.tl !== radii.br || radii.tl !== radii.bl;
+  const radiiXY = getCornerRadiiXY(style, widthPx, heightPx);
+  const radiiScalar = radiiXYToScalar(radiiXY);
+  const needsCustomShape = isElliptical(radiiXY) || isPerCorner(radiiXY);
   const minDim = Math.min(widthPx, heightPx);
 
+  // Shadow halos approximate elliptical corners with the larger axis — see
+  // `radiiXYToScalar`. Phase 3.3's elliptical work is intentionally scoped
+  // out of the shadow composite (per the IMPROVEMENT_PLAN out-of-scope note).
   const shadowPlan = planShadows(
     style.boxShadow,
     widthPx,
     heightPx,
-    radii,
+    radiiScalar,
     layoutConfig.styleScale
   );
   const shadow = shadowPlan.primaryShadow;
@@ -565,7 +618,7 @@ function pseudoToRenderItems(measured, layoutConfig, pptx, parentZ, domOrder) {
         urlMatch[1],
         widthPx,
         heightPx,
-        radii,
+        radiiScalar,
         style.backgroundSize || 'cover',
         style.backgroundPosition || '50% 50%'
       );
@@ -578,7 +631,7 @@ function pseudoToRenderItems(measured, layoutConfig, pptx, parentZ, domOrder) {
     const borderForSvg = hasUniformBorder
       ? { color: borderInfo.options.color, width: parseFloat(style.borderWidth) || 0 }
       : null;
-    const radiusArg = hasPartialBorderRadius ? radii : radii.tl;
+    const radiusArg = needsCustomShape ? radiiXY : radiiScalar.tl;
     const svgData = generateGradientSVG(widthPx, heightPx, bgImg, radiusArg, borderForSvg);
     if (svgData) {
       items.push({
@@ -594,14 +647,14 @@ function pseudoToRenderItems(measured, layoutConfig, pptx, parentZ, domOrder) {
       });
       zCursor++;
     }
-  } else if (hasBg && hasPartialBorderRadius) {
-    // 3. Solid fill with non-uniform corner radii → custom-geometry SVG.
+  } else if (hasBg && needsCustomShape) {
+    // 3. Solid fill with non-uniform / elliptical corner radii → SVG path.
     const shapeSvg = generateCustomShapeSVG(
       widthPx,
       heightPx,
       bg.hex,
       bg.opacity * safeOpacity,
-      radii
+      radiiXY
     );
     items.push({
       type: 'image',
@@ -614,7 +667,7 @@ function pseudoToRenderItems(measured, layoutConfig, pptx, parentZ, domOrder) {
     // 4. Native rect / roundRect / ellipse.
     let shapeType = pptx.ShapeType.rect;
     let rectRadius;
-    const r = radii.tl;
+    const r = radiiScalar.tl;
     if (r > 0) {
       const isFullyRound = r >= minDim / 2;
       const isSquare = Math.abs(widthPx - heightPx) < 1;
@@ -967,6 +1020,9 @@ function prepareRenderItem(
 
   const zIndex = effectiveZIndex;
   const rotation = getRotation(style.transform);
+  if (style.transform && style.transform !== 'none' && hasSkew(style.transform)) {
+    _warnSkewOnce(node, style.transform);
+  }
   const writingModeVert = getWritingModeVert(style.writingMode, style.textOrientation);
   const elementOpacity = parseFloat(style.opacity);
   const safeOpacity = isNaN(elementOpacity) ? 1 : elementOpacity;
@@ -1395,17 +1451,15 @@ function prepareRenderItem(
     return { items: [item], job, stopRecursion: true };
   }
 
-  // Radii logic
+  // Radii logic. Read once into per-corner elliptical form; derive scalar
+  // form for code paths (PPTX `roundRect`, shadow halos) that don't render
+  // elliptical arcs. `needsCustomShape` is true when corners are either
+  // elliptical (rx≠ry) or per-corner divergent — both require an SVG path
+  // because PPTX `prstGeom: roundRect` only supports a single uniform radius.
   const borderRadiusValue = parseFloat(style.borderRadius) || 0;
-  const borderBottomLeftRadius = parseFloat(style.borderBottomLeftRadius) || 0;
-  const borderBottomRightRadius = parseFloat(style.borderBottomRightRadius) || 0;
-  const borderTopLeftRadius = parseFloat(style.borderTopLeftRadius) || 0;
-  const borderTopRightRadius = parseFloat(style.borderTopRightRadius) || 0;
-
-  const hasPartialBorderRadius =
-    borderTopLeftRadius !== borderTopRightRadius ||
-    borderTopLeftRadius !== borderBottomRightRadius ||
-    borderTopLeftRadius !== borderBottomLeftRadius;
+  const radiiXY = getCornerRadiiXY(style, widthPx, heightPx);
+  const radiiScalar = radiiXYToScalar(radiiXY);
+  const hasPartialBorderRadius = isElliptical(radiiXY) || isPerCorner(radiiXY);
 
   // --- PRIORITY SVG: Solid Fill with Partial Border Radius (Vector Cone/Tab) ---
   // Fix for "missing cone": Prioritize SVG vector generation over Raster Canvas for simple shapes with partial radii.
@@ -1418,12 +1472,13 @@ function prepareRenderItem(
   const hasContent = node.textContent.trim().length > 0 || node.children.length > 0;
 
   if (hasPartialBorderRadius && tempBg.hex && !isTxt && !hasContent) {
-    const shapeSvg = generateCustomShapeSVG(widthPx, heightPx, tempBg.hex, tempBg.opacity, {
-      tl: parseFloat(style.borderTopLeftRadius) || 0,
-      tr: parseFloat(style.borderTopRightRadius) || 0,
-      br: parseFloat(style.borderBottomRightRadius) || 0,
-      bl: parseFloat(style.borderBottomLeftRadius) || 0,
-    });
+    const shapeSvg = generateCustomShapeSVG(
+      widthPx,
+      heightPx,
+      tempBg.hex,
+      tempBg.opacity,
+      radiiXY
+    );
 
     return {
       items: [
@@ -1482,9 +1537,8 @@ function prepareRenderItem(
 
   const shadowStr = style.boxShadow;
   const hasShadow = shadowStr && shadowStr !== 'none';
-  const cornerRadiiPx = getCornerRadii(style, widthPx, heightPx);
   const shadowPlan = hasShadow
-    ? planShadows(shadowStr, widthPx, heightPx, cornerRadiiPx, config.styleScale)
+    ? planShadows(shadowStr, widthPx, heightPx, radiiScalar, config.styleScale)
     : { primaryShadow: null, outerImage: null, innerImage: null };
   const softEdge = getSoftEdges(style.filter, config.styleScale);
 
@@ -1666,12 +1720,7 @@ function prepareRenderItem(
           widthPx,
           heightPx,
           style.backgroundImage,
-          hasPartialBorderRadius ? {
-            tl: borderTopLeftRadius,
-            tr: borderTopRightRadius,
-            br: borderBottomRightRadius,
-            bl: borderBottomLeftRadius
-          } : borderRadiusValue,
+          hasPartialBorderRadius ? radiiXY : borderRadiusValue,
           hasBorder ? { color: borderColorObj.hex, width: borderWidth } : null
         );
       }
@@ -1769,12 +1818,7 @@ function prepareRenderItem(
         heightPx,
         bgColorObj.hex,
         bgColorObj.opacity,
-        {
-          tl: parseFloat(style.borderTopLeftRadius) || 0,
-          tr: parseFloat(style.borderTopRightRadius) || 0,
-          br: parseFloat(style.borderBottomRightRadius) || 0,
-          bl: parseFloat(style.borderBottomLeftRadius) || 0,
-        }
+        radiiXY
       );
 
       items.push({

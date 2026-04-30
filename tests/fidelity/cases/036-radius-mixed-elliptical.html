@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>radius-mixed-elliptical</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #ffffff; }
+  #target {
+    width: 960px;
+    height: 540px;
+    background: #ffffff;
+    position: relative;
+  }
+  /* Mixed: per-corner elliptical radii. Each corner has a different rx/ry.
+     Confirms generateCustomShapeSVG honors per-corner elliptical pairs and
+     the dispatch detects the elliptical condition. Phase 3.3. */
+  .blob {
+    position: absolute;
+    left: 280px;
+    top: 170px;
+    width: 400px;
+    height: 200px;
+    background: #1f7a4d;
+    border-radius: 80px 20px 60px 30px / 24px 60px 20px 80px;
+  }
+</style>
+</head>
+<body>
+  <div id="target">
+    <div class="blob"></div>
+  </div>
+</body>
+</html>

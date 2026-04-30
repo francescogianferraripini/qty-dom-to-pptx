@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>scrolled-container</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #ffffff; }
+  #target {
+    width: 960px;
+    height: 540px;
+    background: #ffffff;
+    overflow: auto;
+    position: relative;
+  }
+  /* The export root is itself scrollable. Default behavior should capture
+     "what's visible" — i.e., the post-scroll viewport. The scrolled-out
+     items at top/bottom are off-slide. Phase 3.4. */
+  .item {
+    width: 800px;
+    height: 100px;
+    margin: 20px auto;
+    border-radius: 8px;
+    color: white;
+    font: 600 32px sans-serif;
+    line-height: 100px;
+    text-align: center;
+  }
+  .a { background: #c41e3a; }
+  .b { background: #1f7a4d; }
+  .c { background: #d4a106; color: #1c1c1c; }
+  .d { background: #3a4ec4; }
+  .e { background: #d8d4ca; color: #1c1c1c; }
+  .f { background: #2c2c2c; }
+</style>
+</head>
+<body>
+  <div id="target">
+    <div class="item a">Item A (above the fold)</div>
+    <div class="item b">Item B (above the fold)</div>
+    <div class="item c">Item C — visible</div>
+    <div class="item d">Item D — visible</div>
+    <div class="item e">Item E — visible</div>
+    <div class="item f">Item F (below the fold)</div>
+  </div>
+  <script>
+    /* Scroll past the first two items so the visible area starts at item C. */
+    document.getElementById('target').scrollTop = 240;
+  </script>
+</body>
+</html>

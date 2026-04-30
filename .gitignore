@@ -1,0 +1,24 @@
+node_modules
+.DS_Store
+.git
+test-playground
+.env
+.vscode
+dist
+ins.md
+code_context.txt
+demo
+exported-pptx
+
+# Ad-hoc test scratch files at repo root (formerly the `test*` blanket).
+# Keeps the structured `tests/` tree in version control.
+/test.html
+/test.js
+/test-*.html
+/test-*.js
+
+# Generated fidelity artifacts.
+tests/fidelity/output/*
+!tests/fidelity/output/.gitkeep
+tests/fidelity/report/*
+!tests/fidelity/report/.gitkeep

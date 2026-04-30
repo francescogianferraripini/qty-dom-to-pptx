@@ -4,12 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
-- `npm test` / `npm run test:watch` — Vitest under jsdom (`vitest.config.js`). No test files currently exist in the repo; new specs should live alongside `src/` as `*.test.js` (or under `tests/`) and rely on the jsdom environment.
+- `npm test` / `npm run test:watch` — Vitest under jsdom, scoped to `tests/unit/**` by the root `vitest.config.js`. Unit specs are jsdom-only (snapshot tests for SVG generators in `src/utils.js`); anything needing real Canvas / Image decoding has to go through the fidelity harness instead.
+- `npm run test:fidelity` — separate Vitest project (`tests/fidelity/vitest.config.js`, node env, single fork). Boots a headless Playwright Chromium, serves `tests/fidelity/cases/` over an in-process HTTP server (file:// taints canvases for cross-file loads — see comment at the top of `tests/fidelity/lib/browser.js`), injects `dist/dom-to-pptx.bundle.js`, exports each case, rasterizes the resulting `.pptx` via `libreoffice --headless`, and pixelmatches it against a Playwright screenshot of the source. **You must `npm run build` first** — the fidelity harness loads `dist/dom-to-pptx.bundle.js` directly. Run a single case via Vitest's standard `-t` filter (e.g. `npm run test:fidelity -- -t 003-box-shadow`). Per-case threshold is `FIDELITY_BUDGET` (default 85, content-aware delta — see `diff.js`); manifest folders can override with `"budget"`.
 - `npm run build` — Rollup builds two artifacts from `src/index.js` (`rollup.config.js`):
   - `dist/dom-to-pptx.mjs` + `.cjs` — library builds. All runtime deps (`pptxgenjs`, `html2canvas`, `jszip`, `fonteditor-core`, `opentype.js`, `pako`) are marked **external** and must be installed by the consumer.
-  - `dist/dom-to-pptx.bundle.js` — UMD `domToPptx` global for `<script>` use. Bundles **everything** plus Node polyfills (`rollup-plugin-polyfill-node`, plus `buffer`/`stream-browserify`/`process`/`util`/`events` shims) so the file can run standalone in a browser.
+  - `dist/dom-to-pptx.bundle.js` — UMD `domToPptx` global for `<script>` use. Bundles **everything** plus Node polyfills (`rollup-plugin-polyfill-node`, plus `buffer`/`stream-browserify`/`process`/`util`/`events` shims) so the file can run standalone in a browser. The fidelity harness depends on this artifact.
 - `npm run lint` / `npm run format` — ESLint flat config + Prettier. ESLint ignores `dist/**`, downgrades `no-unused-vars` and `no-undef` to warnings, and assumes browser globals.
-- Serve the fidelity report locally: `python3 -m http.server 8001 --bind 0.0.0.0` from `tests/fidelity/` (not `tests/fidelity/report/`), then open http://localhost:8001/report/. The report references `../output/*.png`, `../cases/*.html`, and `../output/*.pptx`, so the server root must be `tests/fidelity/` for those relative paths to resolve.
+- Serve the fidelity report locally: `python3 -m http.server 8001 --bind 0.0.0.0` from `tests/fidelity/` (not `tests/fidelity/report/`), then open http://localhost:8001/report/. The report references `../output/*.png`, `../cases/*.html`, and `../output/*.pptx`, so the server root must be `tests/fidelity/` for those relative paths to resolve. The report is regenerated on every `test:fidelity` run.
 - Package manager: lockfile is `pnpm-lock.yaml` but `CONTRIBUTING.md` documents `npm install` / `npm test`. Either works; don't regenerate the other lockfile.
 
 ## Architecture
@@ -35,10 +36,24 @@ The library is a **DOM measurement + style translation engine**, not a screensho
 
 ### Module roles
 
-- `src/index.js` — entry point, slide pipeline, render-queue dispatcher. ~1200 lines including `prepareRenderItem` which decides whether a node becomes a shape, text, image, table, or html2canvas raster fallback.
-- `src/utils.js` — the bulk of the style-translation logic. Lives close to the metal: `parseColor` (uses a hidden canvas for color normalization), `getTextStyle`, `getVisibleShadow` (CSS Cartesian → PPTX polar shadows), `generateGradientSVG` (CSS `linear-gradient` parser → SVG vector for gradient fills), `generateBlurredSVG`, `generateCompositeBorderSVG`, `generateCustomShapeSVG`, writing-mode helpers, `extractTableData`, `collectTextParts` (mixed-style rich text), font-detection helpers.
+- `src/index.js` (~2070 lines) — entry point, slide pipeline, render-queue dispatcher. `prepareRenderItem` decides whether a node becomes a shape, text, image, table, or html2canvas raster fallback.
+- `src/utils.js` (~2250 lines) — the bulk of the style-translation logic. Lives close to the metal: `parseColor` (uses a hidden canvas for color normalization), `getTextStyle`, `getVisibleShadow` (CSS Cartesian → PPTX polar shadows), `generateGradientSVG` (CSS `linear-gradient` parser → SVG vector for gradient fills), `generateBlurredSVG`, `generateCompositeBorderSVG`, `generateCustomShapeSVG`, writing-mode helpers, `extractTableData`, `collectTextParts` (mixed-style rich text), font-detection helpers.
 - `src/image-processor.js` — `getProcessedImage` draws the source image to an offscreen canvas at 2× resolution, builds a rounded-rect path with per-corner radius clamping, applies `globalCompositeOperation = 'source-in'` to mask without halos, and respects `object-fit` (`fill`/`contain`/`cover`/`none`/`scale-down`) and `object-position`. Returns a PNG data URL. Requires CORS-accessible images.
 - `src/font-embedder.js` / `src/font-utils.js` — post-process the generated PPTX zip to embed fonts.
+
+### Fidelity harness (`tests/fidelity/`)
+
+The fidelity suite is the source of truth for "did this regress?". It is structured deliberately:
+
+- `cases/*.html` — single-slide synthetic micro-cases, one CSS feature per file (gradients, shadows, transforms, pseudo-elements, etc.). Numeric prefix is just for ordering.
+- `cases/<name>/manifest.json` — multi-slide cases. Manifest shape is `{ entry, slides, budget? }`. `listCases` in `fidelity.test.js` expands a manifest into N cases (`<name>-01` … `<name>-NN`); `runCase` calls `Reveal.slide(idx, 0)` after the page exposes a `window.__revealReady` promise and waits two animation frames before measuring. The Quantyca reveal.js deck under `cases/quantyca/` is the canonical multi-slide canary.
+- `lib/browser.js` — Playwright Chromium + an in-process static server on port 8002. Multi-slide reveal cases share one page across slides via `_pageCache`; single-slide cases tear down per call.
+- `lib/rasterize.js` — shells out to `libreoffice --headless` to convert PPTX → PNG. **LibreOffice must be installed locally** for the fidelity suite to run.
+- `lib/diff.js` — resizes both images to 960×540 with `sharp`, then computes both raw pixel-percent **and** a content-aware delta that gates the budget (foreground-aware: edge density + color shift inside text/edge blocks). Background-dominated slides used to mask foreground regressions on the raw metric — read the comment at the top of `fidelity.test.js` before tightening budgets.
+- `lib/report.js` writes `report/index.html` with side-by-side source/output/diff per case.
+- `output/` and `report/` are gitignored scratch dirs.
+
+Adding a new feature usually means: write a focused micro-case under `cases/`, run `test:fidelity`, then iterate on `src/utils.js` / `src/index.js` until the budget passes. `IMPROVEMENT_PLAN.md` is the running checklist of phased fidelity work — consult/update it when picking up larger initiatives.
 
 ### Key invariants when editing
 

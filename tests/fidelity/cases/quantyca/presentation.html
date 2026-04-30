@@ -23,7 +23,7 @@
   <link rel="icon" type="image/png" href="assets/images/logo.png">
 </head>
 <body>
-  <div class="reveal" id="target">
+  <div class="reveal">
     <div class="slides">
 
       <section id="title" class="hero no-chrome" data-transition="fade">
@@ -995,8 +995,731 @@ def orders_by_region(orders_clean) -> DataFrame:
         <div class="footnote">23 / Iceberg &mdash; visible vs. hidden</div>
       </section>
 
-      <section id="divider-close" class="section-divider" data-state="is-section-divider" data-transition="fade">
+      <section id="divider-systems" class="section-divider alt" data-state="is-section-divider" data-transition="fade">
         <p class="eyebrow">PARTE 05</p>
+        <h1>Visualizzare<br>sistemi</h1>
+        <p>Architetture, stack, maturità, rischi — pattern per spiegare cose complesse senza perdere il filo.</p>
+      </section>
+
+      <!-- 24. Architecture diagram — layered system view -->
+      <section id="architecture">
+        <p class="eyebrow">ARCHITETTURA · VISTA LOGICA</p>
+        <h2>Cinque strati, un solo flusso di responsabilità</h2>
+        <div class="content">
+          <div class="arch-diagram">
+            <div class="arch-stack">
+              <div class="arch-layer">
+                <p class="al-name">Sources</p>
+                <p class="al-items">ERP · CRM · IoT · App events · File feed legacy</p>
+              </div>
+              <div class="arch-layer featured">
+                <p class="al-name">Ingestion</p>
+                <p class="al-items">Kafka Connect · Debezium · Airbyte &mdash; <strong>contract-first</strong>, schema registry obbligatorio</p>
+              </div>
+              <div class="arch-layer">
+                <p class="al-name">Storage</p>
+                <p class="al-items">Delta Lake · Iceberg · Snowflake &mdash; bronze/silver/gold per dominio</p>
+              </div>
+              <div class="arch-layer">
+                <p class="al-name">Processing</p>
+                <p class="al-items">Spark · dbt · Flink &mdash; orchestrazione Dagster, lineage automatico</p>
+              </div>
+              <div class="arch-layer">
+                <p class="al-name">Serving</p>
+                <p class="al-items">API REST · BI semantica · Feature store · Reverse ETL</p>
+              </div>
+            </div>
+            <div class="arch-side">
+              <div class="as-note">
+                <h4>Contract layer</h4>
+                <p>Lo schema registry separa producer e consumer. Nessun consumer dipende da una tabella, dipende da un contratto.</p>
+              </div>
+              <div class="as-note">
+                <h4>Observability trasversale</h4>
+                <p>Lineage, freshness e SLA monitoring sono trasversali agli strati &mdash; un solo control plane.</p>
+              </div>
+              <div class="as-note">
+                <h4>Governance by design</h4>
+                <p>Catalog, classification PII, access control sono cittadini di prima classe, non strumenti di compliance ex-post.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="footnote">24 / Architecture &mdash; layered system view</div>
+      </section>
+
+      <!-- 25. Tech stack — categorised tooling -->
+      <section id="tech-stack">
+        <p class="eyebrow">STACK · TOOLING PER CATEGORIA</p>
+        <h2>Scegliamo lo strumento, non lo sposiamo</h2>
+        <div class="content">
+          <div class="tech-stack">
+            <div class="tech-col">
+              <p class="tc-head">CATEGORIA 01</p>
+              <h3 class="tc-title">Storage</h3>
+              <p class="tech-chip primary">Delta Lake<span class="tc-tag">PRIMARY</span></p>
+              <p class="tech-chip">Apache Iceberg</p>
+              <p class="tech-chip">Snowflake</p>
+              <p class="tech-chip">Postgres / pgvector</p>
+              <p class="tech-chip">S3 · ADLS · GCS</p>
+            </div>
+            <div class="tech-col">
+              <p class="tc-head">CATEGORIA 02</p>
+              <h3 class="tc-title">Compute</h3>
+              <p class="tech-chip primary">Databricks<span class="tc-tag">PRIMARY</span></p>
+              <p class="tech-chip">Apache Spark</p>
+              <p class="tech-chip">dbt Core / Cloud</p>
+              <p class="tech-chip">DuckDB</p>
+              <p class="tech-chip">Trino</p>
+            </div>
+            <div class="tech-col">
+              <p class="tc-head">CATEGORIA 03</p>
+              <h3 class="tc-title">Orchestration</h3>
+              <p class="tech-chip primary">Dagster<span class="tc-tag">PRIMARY</span></p>
+              <p class="tech-chip">Apache Airflow</p>
+              <p class="tech-chip">Prefect</p>
+              <p class="tech-chip">Temporal</p>
+              <p class="tech-chip">Argo Workflows</p>
+            </div>
+            <div class="tech-col">
+              <p class="tc-head">CATEGORIA 04</p>
+              <h3 class="tc-title">Observability</h3>
+              <p class="tech-chip primary">OpenLineage<span class="tc-tag">PRIMARY</span></p>
+              <p class="tech-chip">Soda Core</p>
+              <p class="tech-chip">Great Expectations</p>
+              <p class="tech-chip">Datadog · Grafana</p>
+              <p class="tech-chip">Monte Carlo</p>
+            </div>
+          </div>
+        </div>
+        <div class="footnote">25 / Tech stack &mdash; tooling per categoria</div>
+      </section>
+
+      <!-- 26. Maturity ladder — 5 stages with current marked -->
+      <section id="maturity">
+        <p class="eyebrow">MATURITÀ · DATA OPERATIONS</p>
+        <h2>Cinque stadi: sapere dove sei aiuta a sapere dove andare</h2>
+        <div class="content">
+          <div class="maturity">
+            <div class="mat-ladder">
+              <div class="mat-step">
+                <span class="ms-num">01</span>
+                <div>
+                  <p class="ms-name">Ad-hoc</p>
+                  <p class="ms-desc">Query manuali, report una-tantum, ownership implicita.</p>
+                </div>
+              </div>
+              <div class="mat-step">
+                <span class="ms-num">02</span>
+                <div>
+                  <p class="ms-name">Reattivo</p>
+                  <p class="ms-desc">Pipeline batch fisse, monitoraggio sporadico, alert email.</p>
+                </div>
+              </div>
+              <div class="mat-step current">
+                <span class="ms-num">03</span>
+                <div>
+                  <p class="ms-name">Proattivo &mdash; sei qui</p>
+                  <p class="ms-desc">SLA definiti, owner nominati, contratti dato sui flussi core.</p>
+                </div>
+              </div>
+              <div class="mat-step">
+                <span class="ms-num">04</span>
+                <div>
+                  <p class="ms-name">Predittivo</p>
+                  <p class="ms-desc">Anomaly detection, capacity planning automatico, cost guardrails.</p>
+                </div>
+              </div>
+              <div class="mat-step">
+                <span class="ms-num">05</span>
+                <div>
+                  <p class="ms-name">Autonomo</p>
+                  <p class="ms-desc">Self-healing, contratti rispettati programmaticamente, zero ticket.</p>
+                </div>
+              </div>
+            </div>
+            <div class="mat-side">
+              <p class="text-muted" style="font-size: 11pt; margin: 0;">La progressione tra stadi non è lineare nel tempo: lo stadio <strong>02 → 03</strong> è il salto più costoso, perché richiede un cambio di modello operativo, non di tooling.</p>
+              <div class="mat-callout">
+                <p>Il <strong>20%</strong> del lavoro tecnologico abilita l'<strong>80%</strong> del salto di maturità. Il resto è governance e abitudini di team.</p>
+              </div>
+              <div class="mat-callout" style="border-left-color: var(--q-teal);">
+                <p style="color: var(--q-greydark);"><strong style="color: var(--q-teal);">Prossimo step:</strong> portare i primi tre domini su capacity planning automatico entro Q4 FY26.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="footnote">26 / Maturity ladder &mdash; 5 stadi</div>
+      </section>
+
+      <!-- 27. Risk heatmap — 3x3 grid impact × probability -->
+      <section id="risk-heatmap">
+        <p class="eyebrow">RISK · HEATMAP</p>
+        <h2>I rischi del programma, su impatto × probabilità</h2>
+        <div class="content">
+          <div class="heatmap">
+            <div class="hm-y"><span>IMPATTO</span></div>
+            <div class="hm-grid">
+              <div class="hm-cell med"><strong>Skill gap ML</strong>seniority sottile sul lato modelli</div>
+              <div class="hm-cell high"><strong>Vendor lock-in</strong>pricing cloud volatile</div>
+              <div class="hm-cell crit"><strong>Drift di schema</strong>CDC instabile su CRM legacy</div>
+              <div class="hm-cell low"><strong>Tooling fragmentation</strong>3 progetti dbt duplicati</div>
+              <div class="hm-cell med"><strong>Incident PII</strong>classificazione parziale</div>
+              <div class="hm-cell high"><strong>Cost runaway</strong>cluster sempre on</div>
+              <div class="hm-cell low empty"></div>
+              <div class="hm-cell low"><strong>Doc drift</strong>onboarding lento</div>
+              <div class="hm-cell med"><strong>Time-zone</strong>handover EU/US</div>
+            </div>
+            <div class="hm-x-label">PROB. →</div>
+            <div class="hm-x">
+              <span>BASSA</span>
+              <span>MEDIA</span>
+              <span>ALTA</span>
+            </div>
+            <div class="hm-side">
+              <div class="hs-item">
+                <div class="hs-dot crit"></div>
+                <div>
+                  <h4>P0 &mdash; Drift di schema CRM</h4>
+                  <p>Owner: Platform · Mitigazione: schema registry + contract test in CI &mdash; in delivery.</p>
+                </div>
+              </div>
+              <div class="hs-item">
+                <div class="hs-dot high"></div>
+                <div>
+                  <h4>P1 &mdash; Cost runaway compute</h4>
+                  <p>Owner: FinOps · Mitigazione: budget guardrail + auto-suspend &mdash; pilot Q3.</p>
+                </div>
+              </div>
+              <div class="hs-item">
+                <div class="hs-dot high"></div>
+                <div>
+                  <h4>P1 &mdash; Vendor lock-in</h4>
+                  <p>Owner: Architecture · Mitigazione: layer di astrazione storage &mdash; assessment.</p>
+                </div>
+              </div>
+              <div class="hs-item">
+                <div class="hs-dot med"></div>
+                <div>
+                  <h4>P2 &mdash; Skill gap ML engineering</h4>
+                  <p>Owner: People · Mitigazione: hiring + 2 percorsi di crescita interni.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="footnote">27 / Risk heatmap &mdash; impatto × probabilità</div>
+      </section>
+
+      <!-- 28. Scatter chart — initiatives by ROI × effort -->
+      <section id="chart-scatter">
+        <p class="eyebrow">PORTFOLIO · ROI × SFORZO</p>
+        <h2>Le iniziative del backlog, posizionate</h2>
+        <div class="content" style="display: flex; flex-direction: column;">
+          <div style="flex: 1; display: grid; grid-template-columns: 2.2fr 1fr; gap: 32px; min-height: 0; min-width: 0; padding-top: 8px;">
+            <div style="position: relative; min-height: 0; min-width: 0;">
+              <canvas data-chart="scatter">
+              <!--
+              {
+                "data": {
+                  "datasets": [
+                    {
+                      "label": "Quick wins",
+                      "data": [
+                        {"x": 1.8, "y": 8.2}, {"x": 2.4, "y": 7.6}, {"x": 1.5, "y": 6.4}, {"x": 3.0, "y": 7.0}
+                      ],
+                      "backgroundColor": "#1ab197",
+                      "pointRadius": 9,
+                      "pointHoverRadius": 11
+                    },
+                    {
+                      "label": "Big bets",
+                      "data": [
+                        {"x": 7.5, "y": 9.2}, {"x": 8.4, "y": 8.6}, {"x": 6.8, "y": 8.0}
+                      ],
+                      "backgroundColor": "#a1245a",
+                      "pointRadius": 11,
+                      "pointHoverRadius": 13
+                    },
+                    {
+                      "label": "Trappole",
+                      "data": [
+                        {"x": 7.2, "y": 3.0}, {"x": 8.0, "y": 2.2}, {"x": 5.6, "y": 3.4}
+                      ],
+                      "backgroundColor": "#838383",
+                      "pointRadius": 8,
+                      "pointHoverRadius": 10
+                    },
+                    {
+                      "label": "Da rivalutare",
+                      "data": [
+                        {"x": 2.2, "y": 3.4}, {"x": 3.6, "y": 4.2}
+                      ],
+                      "backgroundColor": "#ffbe0b",
+                      "pointRadius": 8,
+                      "pointHoverRadius": 10
+                    }
+                  ]
+                },
+                "options": {
+                  "maintainAspectRatio": false,
+                  "plugins": { "legend": { "position": "bottom" } },
+                  "scales": {
+                    "x": {
+                      "min": 0, "max": 10,
+                      "title": { "display": true, "text": "Sforzo (story-points equivalenti)" }
+                    },
+                    "y": {
+                      "min": 0, "max": 10,
+                      "title": { "display": true, "text": "ROI atteso (scala 0–10)" }
+                    }
+                  }
+                }
+              }
+              -->
+              </canvas>
+            </div>
+            <div style="display: flex; flex-direction: column; justify-content: center; gap: 16px;">
+              <p class="eyebrow" style="color: var(--q-greydark); margin-bottom: 0;">LETTURA</p>
+              <p style="font-size: 12pt; line-height: 1.5; margin: 0; color: var(--q-body);">
+                In alto a sinistra le <strong style="color: var(--q-teal);">quick win</strong>: alto ROI, basso sforzo. In alto a destra le <strong style="color: var(--q-burgundy);">big bet</strong>: pagano, ma richiedono commitment.
+              </p>
+              <p style="font-size: 12pt; line-height: 1.5; margin: 0; color: var(--q-body);">
+                Le <strong style="color: var(--q-greydark);">trappole</strong> in basso a destra &mdash; alto sforzo, basso ROI &mdash; sono il primo posto da cui tagliare.
+              </p>
+              <div style="border-top: 1px solid var(--q-line); padding-top: 12px; font-size: 10pt; color: var(--q-greydark); line-height: 1.5;">
+                Ogni punto = una iniziativa del backlog FY26. Stima ROI da business case interno.
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="footnote">28 / Chart · scatter &mdash; portfolio mapping</div>
+      </section>
+
+      <!-- 29. Case study — challenge / approach / outcome -->
+      <section id="case-study">
+        <p class="eyebrow">CASE STUDY · INDUSTRIA 4.0</p>
+        <h2>Da silos di plant a self-service in 9 mesi</h2>
+        <div class="content">
+          <div class="case-study">
+            <div class="cs-header">
+              <span class="cs-mark">A</span>
+              <div>
+                <h3>ACME Manufacturing &mdash; 12 stabilimenti, 4 paesi</h3>
+                <p>Settore: Industriale · Programma: Foundation + due domini · Q1–Q3 FY26</p>
+              </div>
+            </div>
+            <div class="cs-grid">
+              <div class="cs-col">
+                <p class="cs-num">01 · SFIDA</p>
+                <h4>KPI ricalcolati a mano, decisioni in ritardo</h4>
+                <p>Dodici sistemi MES diversi, KPI di OEE riconciliati ogni venerdì in Excel.</p>
+                <ul>
+                  <li>Decisioni di plant con 7+ giorni di delay</li>
+                  <li>Ownership del dato sparsa tra 5 funzioni</li>
+                  <li>Quattro dashboard per la stessa metrica</li>
+                </ul>
+              </div>
+              <div class="cs-col">
+                <p class="cs-num">02 · APPROCCIO</p>
+                <h4>Contract-first, un dominio alla volta</h4>
+                <p>Niente big-bang: due domini pilota (produzione, qualità) e un catalogo come single source of truth.</p>
+                <ul>
+                  <li>Schema registry centralizzato</li>
+                  <li>Owner nominato per ogni data product</li>
+                  <li>Self-service via semantic layer dbt</li>
+                </ul>
+              </div>
+              <div class="cs-col outcome">
+                <p class="cs-num">03 · RISULTATO</p>
+                <h4>Decisioni in 4 ore, OEE +18%</h4>
+                <p>Il riconciliato settimanale è scomparso. I plant manager interrogano i dati in autonomia.</p>
+                <ul>
+                  <li><strong>7 giorni → 4 ore</strong> time-to-decision</li>
+                  <li><strong>+18%</strong> OEE medio sui 3 plant pilota</li>
+                  <li><strong>0</strong> incident dato critici in 90 giorni</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="footnote">29 / Case study &mdash; sfida × approccio × risultato</div>
+      </section>
+
+      <!-- 30. FAQ — frequently asked questions -->
+      <section id="faq">
+        <p class="eyebrow">FAQ · DOMANDE FREQUENTI</p>
+        <h2>Le quattro domande che riceviamo prima di partire</h2>
+        <div class="content">
+          <div class="faq">
+            <div class="faq-item">
+              <span class="faq-q">Q1</span>
+              <div>
+                <h4>Quanto tempo per andare in produzione?</h4>
+                <p>Lo strato foundation (catalogo + due data product) è in produzione in <strong>8&ndash;12 settimane</strong>. Il primo valore di business arriva al terzo mese.</p>
+              </div>
+            </div>
+            <div class="faq-item">
+              <span class="faq-q">Q2</span>
+              <div>
+                <h4>Serve cambiare il cloud che usiamo?</h4>
+                <p>No. Lavoriamo su <strong>AWS, Azure, GCP o on-prem</strong>. Lo stack è progettato per essere portabile &mdash; il vendor è una scelta, non un vincolo.</p>
+              </div>
+            </div>
+            <div class="faq-item featured">
+              <span class="faq-q">Q3</span>
+              <div>
+                <h4>I miei team possono partecipare alla delivery?</h4>
+                <p>Sì &mdash; anzi è il modello che funziona. I nostri ingegneri lavorano <strong>fianco a fianco</strong> coi team interni, con knowledge transfer pianificato dal giorno uno.</p>
+              </div>
+            </div>
+            <div class="faq-item">
+              <span class="faq-q">Q4</span>
+              <div>
+                <h4>Cosa succede dopo il go-live?</h4>
+                <p>Restiamo in supporto sui contratti dato e sulla piattaforma per <strong>3&ndash;6 mesi</strong>. Poi il modello passa a on-call, con SLA contrattuali misurati.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="footnote">30 / FAQ &mdash; domande frequenti</div>
+      </section>
+
+      <section id="divider-operating" class="section-divider" data-state="is-section-divider" data-transition="fade">
+        <p class="eyebrow">PARTE 06</p>
+        <h1>Operare<br>insieme</h1>
+        <p>Persone, ruoli, voci dei clienti, regole non negoziabili. La parte umana del programma.</p>
+      </section>
+
+      <!-- 31. Funnel — adoption pipeline -->
+      <section id="funnel">
+        <p class="eyebrow">FUNNEL · ADOZIONE DEL DATO</p>
+        <h2>Dal lake alla decisione &mdash; dove si perde valore?</h2>
+        <div class="content">
+          <div class="funnel-wrap">
+            <div class="funnel">
+              <div class="funnel-row r1">
+                <span class="fr-label">Dati grezzi nel lake</span>
+                <span class="fr-pct">100%</span>
+              </div>
+              <div class="funnel-row r2">
+                <span class="fr-label">Certificati &mdash; catalogo + contratto</span>
+                <span class="fr-pct">62%</span>
+              </div>
+              <div class="funnel-row r3">
+                <span class="fr-label">Esposti come prodotto-dato</span>
+                <span class="fr-pct">41%</span>
+              </div>
+              <div class="funnel-row r4">
+                <span class="fr-label">Consumati attivamente</span>
+                <span class="fr-pct">24%</span>
+              </div>
+              <div class="funnel-row r5">
+                <span class="fr-label">Drivano una decisione misurata</span>
+                <span class="fr-pct">11%</span>
+              </div>
+            </div>
+            <div class="funnel-side">
+              <div class="fs-item warn">
+                <h4>Bottleneck attuale: 38% drop su certificazione</h4>
+                <p>Manca un owner formale per metà del lake bronze. È la prima leva da tirare.</p>
+              </div>
+              <div class="fs-item">
+                <h4>Drop fisiologico: certificato → consumato</h4>
+                <p>Solo il 39% del certificato viene davvero usato &mdash; il dato esiste ma non è ancora discoverable.</p>
+              </div>
+              <div class="fs-item good">
+                <h4>Vittoria silenziosa: 11% guida decisioni</h4>
+                <p>Triplicato negli ultimi 18 mesi. Ogni punto qui vale più di dieci nello strato grezzo.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="footnote">31 / Funnel &mdash; adozione del dato</div>
+      </section>
+
+      <!-- 32. RACI matrix — roles × activities -->
+      <section id="raci">
+        <p class="eyebrow">GOVERNANCE · MATRICE RACI</p>
+        <h2>Chi fa cosa, durante il ciclo di vita di un data product</h2>
+        <div class="content">
+          <table class="raci-table">
+            <thead>
+              <tr>
+                <th class="row-header"></th>
+                <th>Producer</th>
+                <th>Domain Owner</th>
+                <th>Platform</th>
+                <th>Stewardship</th>
+                <th>Consumer</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th>Definizione schema &amp; contratto</th>
+                <td class="raci-cell r">R</td>
+                <td class="raci-cell a">A</td>
+                <td class="raci-cell c">C</td>
+                <td class="raci-cell c">C</td>
+                <td class="raci-cell i">I</td>
+              </tr>
+              <tr>
+                <th>Implementazione pipeline</th>
+                <td class="raci-cell r">R</td>
+                <td class="raci-cell c">C</td>
+                <td class="raci-cell a">A</td>
+                <td class="raci-cell i">I</td>
+                <td class="raci-cell i">I</td>
+              </tr>
+              <tr>
+                <th>Catalogo &amp; lineage</th>
+                <td class="raci-cell c">C</td>
+                <td class="raci-cell i">I</td>
+                <td class="raci-cell r">R</td>
+                <td class="raci-cell a">A</td>
+                <td class="raci-cell i">I</td>
+              </tr>
+              <tr>
+                <th>SLA &amp; data quality</th>
+                <td class="raci-cell r">R</td>
+                <td class="raci-cell a">A</td>
+                <td class="raci-cell c">C</td>
+                <td class="raci-cell c">C</td>
+                <td class="raci-cell i">I</td>
+              </tr>
+              <tr>
+                <th>Decisioni di accesso</th>
+                <td class="raci-cell i">I</td>
+                <td class="raci-cell a">A</td>
+                <td class="raci-cell r">R</td>
+                <td class="raci-cell c">C</td>
+                <td class="raci-cell i">I</td>
+              </tr>
+              <tr>
+                <th>Risoluzione incident</th>
+                <td class="raci-cell r">R</td>
+                <td class="raci-cell a">A</td>
+                <td class="raci-cell r">R</td>
+                <td class="raci-cell i">I</td>
+                <td class="raci-cell c">C</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="raci-legend">
+            <span class="rl-key"><span class="rl-badge raci-cell r">R</span><strong>Responsible</strong> esegue il lavoro</span>
+            <span class="rl-key"><span class="rl-badge raci-cell a">A</span><strong>Accountable</strong> risponde del risultato</span>
+            <span class="rl-key"><span class="rl-badge raci-cell c">C</span><strong>Consulted</strong> input prima di decidere</span>
+            <span class="rl-key"><span class="rl-badge raci-cell i">I</span><strong>Informed</strong> aggiornato sull'esito</span>
+          </div>
+        </div>
+        <div class="footnote">32 / RACI &mdash; ruoli × attività</div>
+      </section>
+
+      <!-- 33. Testimonial trio — three client quotes -->
+      <section id="testimonials">
+        <p class="eyebrow">VOICES · COSA DICONO I CLIENTI</p>
+        <h2>Tre testimonianze, tre angolature diverse</h2>
+        <div class="content">
+          <div class="tt-grid">
+            <div class="tt-card">
+              <span class="tt-mark">&ldquo;</span>
+              <p class="tt-quote">Per la prima volta i numeri del Monday morning meeting coincidono tra finance e operations. Sembra banale &mdash; ma è la differenza tra discutere il problema e discutere chi ha ragione.</p>
+              <div class="tt-author">
+                <span class="tt-avatar">MC</span>
+                <div>
+                  <p class="tt-name">Marta Conti</p>
+                  <p class="tt-role">CDO · Retail Group</p>
+                </div>
+              </div>
+            </div>
+            <div class="tt-card featured">
+              <span class="tt-mark">&ldquo;</span>
+              <p class="tt-quote">Il loro approccio &ldquo;contract-first&rdquo; ci ha costretti a fare le domande giuste prima di scrivere codice. Ha rallentato il primo sprint del 30%, e accelerato i successivi del triplo.</p>
+              <div class="tt-author">
+                <span class="tt-avatar">LR</span>
+                <div>
+                  <p class="tt-name">Luca Ravelli</p>
+                  <p class="tt-role">Head of Data Platform · Insurance</p>
+                </div>
+              </div>
+            </div>
+            <div class="tt-card">
+              <span class="tt-mark">&ldquo;</span>
+              <p class="tt-quote">Cercavamo un fornitore, abbiamo trovato un team. I loro ingegneri stanno nelle nostre standup come se fossero dei nostri &mdash; e quando se ne andranno, noi sapremo continuare.</p>
+              <div class="tt-author">
+                <span class="tt-avatar">SE</span>
+                <div>
+                  <p class="tt-name">Sara Esposito</p>
+                  <p class="tt-role">VP Engineering · Manufacturing</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="footnote">33 / Testimonial trio &mdash; client voices</div>
+      </section>
+
+      <!-- 34. Readiness checklist — go-live status -->
+      <section id="readiness">
+        <p class="eyebrow">GO-LIVE · READINESS REVIEW</p>
+        <h2>Otto controlli, uno stato &mdash; pronti a Q3 FY26?</h2>
+        <div class="content">
+          <div class="readiness">
+            <div class="rd-item">
+              <i class="fa-solid fa-circle-check rd-icon ok"></i>
+              <p class="rd-text"><strong>Schema registry attivo</strong><span>Tutti i 47 stream core registrati e validati.</span></p>
+              <span class="rd-status ok">Ready</span>
+            </div>
+            <div class="rd-item">
+              <i class="fa-solid fa-circle-check rd-icon ok"></i>
+              <p class="rd-text"><strong>Data contracts firmati</strong><span>100% asset gold, 82% silver coperti.</span></p>
+              <span class="rd-status ok">Ready</span>
+            </div>
+            <div class="rd-item">
+              <i class="fa-solid fa-triangle-exclamation rd-icon warn"></i>
+              <p class="rd-text"><strong>Test di carico</strong><span>3 di 5 scenari completati &mdash; il quarto in corso.</span></p>
+              <span class="rd-status warn">In corso</span>
+            </div>
+            <div class="rd-item">
+              <i class="fa-solid fa-circle-check rd-icon ok"></i>
+              <p class="rd-text"><strong>Owner nominati</strong><span>Tutti i 14 domini hanno un Domain Owner accountable.</span></p>
+              <span class="rd-status ok">Ready</span>
+            </div>
+            <div class="rd-item">
+              <i class="fa-solid fa-circle-check rd-icon ok"></i>
+              <p class="rd-text"><strong>Runbook on-call</strong><span>Documentati 28 scenari, rotazione settimanale attiva.</span></p>
+              <span class="rd-status ok">Ready</span>
+            </div>
+            <div class="rd-item">
+              <i class="fa-solid fa-circle-xmark rd-icon no"></i>
+              <p class="rd-text"><strong>Disaster recovery test</strong><span>Procedure scritte, ma non ancora eseguite end-to-end.</span></p>
+              <span class="rd-status no">Blocker</span>
+            </div>
+            <div class="rd-item">
+              <i class="fa-solid fa-circle-check rd-icon ok"></i>
+              <p class="rd-text"><strong>Documentazione consumer</strong><span>Catalogo navigabile, esempi d'uso pubblicati per i top-10 dataset.</span></p>
+              <span class="rd-status ok">Ready</span>
+            </div>
+            <div class="rd-item">
+              <i class="fa-solid fa-triangle-exclamation rd-icon warn"></i>
+              <p class="rd-text"><strong>Cost guardrail</strong><span>Pilota su 2 cluster, rollout esteso pianificato per la prossima sprint.</span></p>
+              <span class="rd-status warn">Pilot</span>
+            </div>
+          </div>
+        </div>
+        <div class="footnote">34 / Readiness &mdash; go-live checklist</div>
+      </section>
+
+      <!-- 35. Numbered principles — non-negotiable rules -->
+      <section id="principles">
+        <p class="eyebrow">PRINCIPLES · LE NOSTRE REGOLE</p>
+        <h2>Quattro non-negoziabili, sotto cui non scendiamo</h2>
+        <div class="content">
+          <div class="principles">
+            <div class="pr-card">
+              <span class="pr-num">01</span>
+              <h3>Il dato ha un proprietario</h3>
+              <p>Niente owner, niente prodotto. Senza una persona accountable, il dato è solo un file su disco.</p>
+            </div>
+            <div class="pr-card featured">
+              <span class="pr-num">02</span>
+              <h3>Il contratto viene prima del codice</h3>
+              <p>Schema, SLA e politica di accesso si decidono prima della prima riga di pipeline &mdash; sempre.</p>
+            </div>
+            <div class="pr-card">
+              <span class="pr-num">03</span>
+              <h3>Una metrica, una definizione</h3>
+              <p>Niente duplicati, niente versioni alternative. Un nome, un calcolo, un owner &mdash; o non esiste.</p>
+            </div>
+            <div class="pr-card">
+              <span class="pr-num">04</span>
+              <h3>Il consumo guida la priorità</h3>
+              <p>Le pipeline non utilizzate vengono ritirate. Niente nostalgia, niente &ldquo;serve a qualcuno&rdquo;.</p>
+            </div>
+          </div>
+        </div>
+        <div class="footnote">35 / Principles &mdash; le quattro regole</div>
+      </section>
+
+      <!-- 36. Stakeholder personas — three profiles -->
+      <section id="personas">
+        <p class="eyebrow">PERSONAS · CHI SERVIAMO</p>
+        <h2>Tre profili, tre bisogni diversi &mdash; una sola piattaforma</h2>
+        <div class="content">
+          <div class="personas">
+            <div class="persona">
+              <div class="persona-head">
+                <span class="persona-avatar">M</span>
+                <div>
+                  <p class="p-name">Marta &mdash; CDO</p>
+                  <p class="p-role">Sponsor esecutivo</p>
+                </div>
+              </div>
+              <div class="persona-attr">
+                <span class="pa-tag">Obiettivo</span>
+                <p>Dimostrare il ROI del programma dati al board, ogni trimestre.</p>
+              </div>
+              <div class="persona-attr">
+                <span class="pa-tag">Frustrazione</span>
+                <p>KPI inconsistenti tra dashboard e versioni Excel parallele.</p>
+              </div>
+              <div class="persona-attr">
+                <span class="pa-tag">Leva</span>
+                <p>Catalogo certificato + report sponsor-level con metriche di adozione.</p>
+              </div>
+              <p class="persona-quote">«Ho bisogno di numeri di cui mi possa fidare il primo del mese.»</p>
+            </div>
+            <div class="persona">
+              <div class="persona-head">
+                <span class="persona-avatar">L</span>
+                <div>
+                  <p class="p-name">Luca &mdash; Plant Manager</p>
+                  <p class="p-role">Operativo &mdash; decisioni quotidiane</p>
+                </div>
+              </div>
+              <div class="persona-attr">
+                <span class="pa-tag">Obiettivo</span>
+                <p>Decidere oggi su una linea di produzione, non lunedì prossimo.</p>
+              </div>
+              <div class="persona-attr">
+                <span class="pa-tag">Frustrazione</span>
+                <p>Report che arrivano in ritardo, dati riconciliati a mano in Excel.</p>
+              </div>
+              <div class="persona-attr">
+                <span class="pa-tag">Leva</span>
+                <p>Dashboard real-time per stabilimento, alert su soglie operative.</p>
+              </div>
+              <p class="persona-quote">«Se devo aspettare il report del lunedì, ho già perso la settimana.»</p>
+            </div>
+            <div class="persona">
+              <div class="persona-head">
+                <span class="persona-avatar">S</span>
+                <div>
+                  <p class="p-name">Sara &mdash; Data Analyst</p>
+                  <p class="p-role">Power user interno</p>
+                </div>
+              </div>
+              <div class="persona-attr">
+                <span class="pa-tag">Obiettivo</span>
+                <p>Rispondere a una domanda di business in giornata, in autonomia.</p>
+              </div>
+              <div class="persona-attr">
+                <span class="pa-tag">Frustrazione</span>
+                <p>Tabelle senza documentazione, join che nessuno sa più spiegare.</p>
+              </div>
+              <div class="persona-attr">
+                <span class="pa-tag">Leva</span>
+                <p>Catalogo navigabile + semantic layer dbt con metriche condivise.</p>
+              </div>
+              <p class="persona-quote">«Voglio capire un dataset in cinque minuti, non in cinque giorni.»</p>
+            </div>
+          </div>
+        </div>
+        <div class="footnote">36 / Personas &mdash; tre profili</div>
+      </section>
+
+      <section id="divider-close" class="section-divider" data-state="is-section-divider" data-transition="fade">
+        <p class="eyebrow">PARTE 07</p>
         <h1>Per chiudere</h1>
         <p>Un riepilogo breve e i comandi da ricordare.</p>
       </section>
@@ -1035,19 +1758,33 @@ def orders_by_region(orders_clean) -> DataFrame:
 
   <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/highlight/highlight.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js-plugins@latest/chart/plugin.js"></script>
   <script>
-    window.__revealReady = Reveal.initialize({
+    Reveal.initialize({
       width: 1280,
       height: 720,
       margin: 0,
-      controls: false,
-      progress: false,
-      slideNumber: false,
-      hash: false,
-      transition: 'none',
+      controls: true,
+      progress: true,
+      slideNumber: 'c/t',
+      hash: true,
+      transition: 'slide',
       center: false,
-      embedded: false,
-      plugins: [ RevealHighlight ]
+      plugins: [ RevealHighlight, RevealChart ],
+      chart: {
+        defaults: Object.assign({
+          color: 'rgba(22, 23, 25, 0.85)',
+          borderColor: 'rgba(22, 23, 25, 0.15)',
+          devicePixelRatio: 2,
+          plugins: {
+            legend: { labels: { color: '#161719', font: { family: 'Poppins', size: 13, weight: '500' } } }
+          },
+          scales: {
+            x: { ticks: { color: '#161719', font: { family: 'Poppins' } }, grid: { color: 'rgba(22,23,25,0.08)' } },
+            y: { ticks: { color: '#161719', font: { family: 'Poppins' } }, grid: { color: 'rgba(22,23,25,0.08)' } }
+          }
+        }, window.location.search.includes('export') ? { animation: false } : {})
+      }
     });
   </script>
 </body>
