@@ -1469,11 +1469,7 @@ function prepareRenderItem(
     });
 
     if (textParts.length > 0) {
-      const { align, valign, intentionalSize } = resolveContainerAlignment(
-        style,
-        widthPx,
-        heightPx
-      );
+      const { align, valign, intentionalSize } = resolveContainerAlignment(style, heightPx);
 
       let padding = getPadding(style, config.styleScale);
       if (align === 'center' && valign === 'middle') padding = [0, 0, 0, 0];

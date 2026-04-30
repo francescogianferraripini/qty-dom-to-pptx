@@ -1067,6 +1067,19 @@ export function getRotation(transformStr) {
   return Math.round(Math.atan2(b, a) * (180 / Math.PI));
 }
 
+const horizMap = (v) => {
+  if (v === 'center') return 'center';
+  if (v === 'flex-end' || v === 'end') return 'right';
+  if (v === 'flex-start' || v === 'start') return 'left';
+  return null;
+};
+const vertMap = (v) => {
+  if (v === 'center') return 'middle';
+  if (v === 'flex-end' || v === 'end') return 'bottom';
+  if (v === 'flex-start' || v === 'start') return 'top';
+  return null;
+};
+
 /**
  * Resolve PPTX text alignment from a CSS layout style. Honors flex
  * (with `flex-direction` axis swap), grid, the `place-items` /
@@ -1079,7 +1092,7 @@ export function getRotation(transformStr) {
  * pptxgenjs `autoFit: true` (which emits `<a:spAutoFit/>` and resizes
  * the shape down to text) so the declared box dimensions survive.
  */
-export function resolveContainerAlignment(style, widthPx, heightPx) {
+export function resolveContainerAlignment(style, heightPx) {
   const display = style.display || '';
   const isFlex = display.includes('flex');
   const isGrid = display.includes('grid');
@@ -1087,23 +1100,10 @@ export function resolveContainerAlignment(style, widthPx, heightPx) {
   const flexDirection = style.flexDirection || 'row';
   const isColumn = flexDirection === 'column' || flexDirection === 'column-reverse';
 
-  const horizMap = (v) => {
-    if (v === 'center') return 'center';
-    if (v === 'flex-end' || v === 'end' || v === 'right') return 'right';
-    if (v === 'flex-start' || v === 'start' || v === 'left') return 'left';
-    return null;
-  };
-  const vertMap = (v) => {
-    if (v === 'center') return 'middle';
-    if (v === 'flex-end' || v === 'end') return 'bottom';
-    if (v === 'flex-start' || v === 'start') return 'top';
-    return null;
-  };
-
   let align = style.textAlign || 'left';
   if (align === 'start') align = 'left';
   if (align === 'end') align = 'right';
-  if (align !== 'left' && align !== 'right' && align !== 'center') align = 'left';
+  if (!['left', 'right', 'center', 'justify'].includes(align)) align = 'left';
 
   let valign = 'top';
   let intentionalSize = false;
@@ -1131,12 +1131,8 @@ export function resolveContainerAlignment(style, widthPx, heightPx) {
     // `place-content` (track-axis) both end up centering the run. Prefer
     // the item axis but fall back to the content axis when items are at
     // their `normal` / default.
-    const h =
-      horizMap(justifyItems) ||
-      horizMap(justifyContent);
-    const v =
-      vertMap(alignItems) ||
-      vertMap(alignContent);
+    const h = horizMap(justifyItems) || horizMap(justifyContent);
+    const v = vertMap(alignItems) || vertMap(alignContent);
     if (h) { align = h; intentionalSize = true; }
     if (v) { valign = v; intentionalSize = true; }
   }
@@ -1145,16 +1141,18 @@ export function resolveContainerAlignment(style, widthPx, heightPx) {
   // `line-height` set to that height. Browser renders the text in the
   // middle of the line-box; PPTX uses font metrics so without an
   // explicit valign='middle' the run sits at the top of the shape.
-  const fontSize = parseFloat(style.fontSize) || 0;
-  const lineHeight = parseFloat(style.lineHeight) || 0; // 'normal' → NaN → 0
-  if (
-    fontSize > 0 &&
-    lineHeight > fontSize * 1.4 &&
-    heightPx > 0 &&
-    Math.abs(lineHeight - heightPx) <= Math.max(2, heightPx * 0.05)
-  ) {
-    valign = 'middle';
-    intentionalSize = true;
+  if (valign !== 'middle') {
+    const fontSize = parseFloat(style.fontSize) || 0;
+    const lineHeight = parseFloat(style.lineHeight) || 0; // 'normal' → NaN → 0
+    if (
+      fontSize > 0 &&
+      lineHeight > fontSize * 1.4 &&
+      heightPx > 0 &&
+      Math.abs(lineHeight - heightPx) <= Math.max(2, heightPx * 0.05)
+    ) {
+      valign = 'middle';
+      intentionalSize = true;
+    }
   }
 
   return { align, valign, intentionalSize };
