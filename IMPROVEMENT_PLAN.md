@@ -111,7 +111,7 @@ Two of the "still TODO" items above shipped together:
 
 - Render-queue snapshot tests for a fixture DOM (the plan calls for these, but `prepareRenderItem` builds the queue inside `processSlide` and doesn't currently expose it for inspection — needs a small testing seam).
 - A CI wrapper that fails if any case's `contentPercent` increases >1pt vs. the previous main.
-- Grow the synthetic corpus from 14 → ~30 cases as Phases 2–3 land. (The reveal deck doubles as a real-world canary, but isolated micro-cases are still needed for root-causing regressions.)
+- ~~Grow the synthetic corpus from 14 → ~30 cases as Phases 2–3 land.~~ ✅ landed (cases 020–030; 30 synthetic + 32 quantyca = 61 total). Six new cases pass clean as regression guards (024 rgba/hex8/hsla, 025 oklch sRGB-clip, 026 transform-translate, 027 leaf transform-scale, 028 isolated transform-origin); five flag known engine gaps under the 85% budget — 020 multi-shadow-stack at 58% (Phase 2.1), 021 inset-shadow at 66% (Phase 2.2), 022 outline-stroke at 81% (Phase 2.3, tightest headroom), 023 transparent-border at 32% (Phase 2.4), 029/030 elliptical & per-corner radius at ~22% (Phase 3.3). Two unrelated engine bugs surfaced and were sidestepped via case redesign rather than fixed: `display: flex` text-containers collapse height (caused initial 025/027 failures), and `line-height`-based vertical text centering doesn't translate. Both worth a Phase 1 follow-up case + fix when convenient.
 
 **Phase 1.1 re-validation + opacity:0 skip ✅ landed**
 
@@ -310,6 +310,7 @@ Phases 0, 1, 1.1 re-validation, 1.2, and the opacity:0 skip have shipped. Next u
 | 5 | Phase 1.2 — decorative pseudo-element boxes ✅ | Corner brand mark, H2 underline, hero/divider full-bleeds, badges, percent-radius dots all translate |
 | 6 | Phase 1.1 re-validation + `opacity: 0` skip ✅ | offsetWidth × styleScale fixed case 010; opacity skip in UL/text-container/collectTextParts dropped q-08 by ~21pt |
 | 6.5 | Harness: serve cases via local HTTP server ✅ | `127.0.0.1:8001` static server replaces file://; SVG icons + url-background pseudos now round-trip cleanly |
+| 6.6 | Phase 0 addendum — synthetic corpus 19 → 30 ✅ | Cases 020–030 cover Phase 2/3 territory; six clean regression guards, five flag known gaps with 4–66pt budget headroom |
 | 7 | 2 (color/shadow/border) | Visible on most decks; isolated changes |
 | 8 | 9 (rasterization escape hatch, *minimal*) | Unblocks "ship something acceptable for unsupported CSS" |
 | 9 | 4 (gradients/backgrounds) | Common, currently silently dropped |
