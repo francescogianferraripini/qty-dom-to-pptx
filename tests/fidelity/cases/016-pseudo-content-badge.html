@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>pseudo-content-badge</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #ffffff; }
+  #target {
+    width: 960px;
+    height: 540px;
+    box-sizing: border-box;
+    padding: 80px;
+    font-family: Arial, sans-serif;
+    color: #1a1a1a;
+    position: relative;
+    background: #ffffff;
+  }
+  /* Corner brand mark — width:auto, must be measured via DOM proxy */
+  #target::after {
+    content: 'QUANTYCA \B7  DATA, AT CORE';
+    position: absolute;
+    top: 28px;
+    right: 80px;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    color: #555555;
+    text-transform: uppercase;
+  }
+  h1 { font-size: 48px; margin: 0; }
+  p { font-size: 18px; line-height: 1.5; margin-top: 16px; }
+</style>
+</head>
+<body>
+  <div id="target">
+    <h1>Headline copy</h1>
+    <p>The corner brand mark is rendered from a pseudo-element with content text.</p>
+  </div>
+</body>
+</html>

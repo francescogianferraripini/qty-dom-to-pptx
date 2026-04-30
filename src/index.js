@@ -346,14 +346,15 @@ async function processSlide(root, slide, pptx, globalOptions = {}) {
     for (const which of ['before', 'after']) {
       const measured = measurePseudoBox(parent, which);
       if (!measured) continue;
-      const item = pseudoToRenderItem(
+      const result = pseudoToRenderItems(
         measured,
         { ...layoutConfig, styleScale: pseudoStyleScale },
         pptx,
         parentZ,
         parentOrder
       );
-      if (item) renderQueue.push(item);
+      if (result?.items?.length) renderQueue.push(...result.items);
+      if (result?.job) asyncTasks.push(result.job);
     }
   }
 
@@ -400,13 +401,36 @@ async function processSlide(root, slide, pptx, globalOptions = {}) {
   }
 }
 
-// Turn a measurePseudoBox() result into a shape render item. Decorative
-// pseudo-elements rarely contain text — they're underlines, badges, brand
-// marks — so we render them as a single backed shape with optional border
-// and rounded corners. Pseudo `content` text (icons) is still picked up by
-// collectTextParts inside the parent's text payload, so we don't double-emit.
-function pseudoToRenderItem(measured, layoutConfig, pptx, zIndex, domOrder) {
-  const { rect, style } = measured;
+// Parse per-corner radii, accepting both pixels and percentages (resolved
+// against the box's smaller dimension, matching CSS `border-radius: 50%`
+// for circles).
+function parsePseudoRadii(style, widthPx, heightPx) {
+  const minDim = Math.min(widthPx, heightPx);
+  const parseR = (v) => {
+    if (!v) return 0;
+    const s = String(v);
+    if (s.includes('%')) {
+      const pct = parseFloat(s);
+      return isFinite(pct) ? (pct / 100) * minDim : 0;
+    }
+    const n = parseFloat(s);
+    return isFinite(n) ? n : 0;
+  };
+  return {
+    tl: parseR(style.borderTopLeftRadius),
+    tr: parseR(style.borderTopRightRadius),
+    br: parseR(style.borderBottomRightRadius),
+    bl: parseR(style.borderBottomLeftRadius),
+  };
+}
+
+// Turn a measurePseudoBox() result into one or more render items. A
+// decorative pseudo can produce: a background image (url or gradient), a
+// fill/stroke shape, and an overlaid text run for `content: 'text'`. We
+// return them in z-order; an async job is returned when a url-based
+// background needs to be fetched and processed.
+function pseudoToRenderItems(measured, layoutConfig, pptx, parentZ, domOrder) {
+  const { rect, style, contentText } = measured;
   const widthPx = rect.width;
   const heightPx = rect.height;
   if (widthPx < 0.5 || heightPx < 0.5) return null;
@@ -418,41 +442,175 @@ function pseudoToRenderItem(measured, layoutConfig, pptx, zIndex, domOrder) {
   const y =
     layoutConfig.offY + (rect.top - layoutConfig.rootY) * PX_TO_INCH * layoutConfig.scale;
 
+  // Effective z-index: by default a pseudo sits at the parent's stacking
+  // level, so floor at parentZ. An explicit z-index on the pseudo can lift
+  // it above siblings (reveal's hero/divider use this to layer the
+  // page-header.svg behind the headline).
+  const ownZRaw = style.zIndex;
+  const ownZ = ownZRaw && ownZRaw !== 'auto' ? parseInt(ownZRaw) : NaN;
+  const baseZ = isNaN(ownZ) ? parentZ : Math.max(ownZ, parentZ);
+
+  const opacityNum = parseFloat(style.opacity);
+  const safeOpacity = isNaN(opacityNum) ? 1 : opacityNum;
+
   const bg = parseColor(style.backgroundColor);
   const hasBg = bg.hex && bg.opacity > 0;
   const borderInfo = getBorderInfo(style, layoutConfig.styleScale);
   const hasUniformBorder = borderInfo.type === 'uniform';
   const rotation = getRotation(style.transform);
 
-  const radiusPx = parseFloat(style.borderRadius) || 0;
+  const bgImg = style.backgroundImage;
+  const hasBgImage = bgImg && bgImg !== 'none';
+  const hasGradient = hasBgImage && bgImg.includes('gradient(');
+  const urlMatch = hasBgImage && !hasGradient ? bgImg.match(/url\(['"]?(.*?)['"]?\)/) : null;
+  const hasBgUrl = !!urlMatch;
+
+  const radii = parsePseudoRadii(style, widthPx, heightPx);
+  const hasPartialBorderRadius =
+    radii.tl !== radii.tr || radii.tl !== radii.br || radii.tl !== radii.bl;
   const minDim = Math.min(widthPx, heightPx);
-  let shapeType = pptx.ShapeType.rect;
-  let rectRadius;
-  if (radiusPx > 0) {
-    shapeType = radiusPx >= minDim / 2 ? pptx.ShapeType.ellipse : pptx.ShapeType.roundRect;
-    if (shapeType === pptx.ShapeType.roundRect) {
-      rectRadius = Math.min(radiusPx, minDim / 2) * PX_TO_INCH * layoutConfig.styleScale;
+
+  const shadow = getVisibleShadow(style.boxShadow, layoutConfig.styleScale);
+
+  const items = [];
+  let job = null;
+  let zCursor = baseZ;
+
+  // 1. Background image (raster URL) — async fetch + clip to radii.
+  if (hasBgUrl) {
+    const bgItem = {
+      type: 'image',
+      zIndex: zCursor,
+      domOrder,
+      options: {
+        x, y, w, h,
+        rotate: rotation,
+        data: null,
+        transparency: (1 - safeOpacity) * 100,
+      },
+    };
+    items.push(bgItem);
+    job = async () => {
+      const processed = await getProcessedImage(
+        urlMatch[1],
+        widthPx,
+        heightPx,
+        radii,
+        style.backgroundSize || 'cover',
+        style.backgroundPosition || '50% 50%'
+      );
+      if (processed) bgItem.options.data = processed;
+      else bgItem.skip = true;
+    };
+    zCursor++;
+  } else if (hasGradient) {
+    // 2. Gradient background → SVG.
+    const borderForSvg = hasUniformBorder
+      ? { color: borderInfo.options.color, width: parseFloat(style.borderWidth) || 0 }
+      : null;
+    const radiusArg = hasPartialBorderRadius ? radii : radii.tl;
+    const svgData = generateGradientSVG(widthPx, heightPx, bgImg, radiusArg, borderForSvg);
+    if (svgData) {
+      items.push({
+        type: 'image',
+        zIndex: zCursor,
+        domOrder,
+        options: {
+          data: svgData,
+          x, y, w, h,
+          rotate: rotation,
+          transparency: (1 - safeOpacity) * 100,
+        },
+      });
+      zCursor++;
     }
+  } else if (hasBg && hasPartialBorderRadius) {
+    // 3. Solid fill with non-uniform corner radii → custom-geometry SVG.
+    const shapeSvg = generateCustomShapeSVG(
+      widthPx,
+      heightPx,
+      bg.hex,
+      bg.opacity * safeOpacity,
+      radii
+    );
+    items.push({
+      type: 'image',
+      zIndex: zCursor,
+      domOrder,
+      options: { data: shapeSvg, x, y, w, h, rotate: rotation },
+    });
+    zCursor++;
+  } else if (hasBg || hasUniformBorder || shadow) {
+    // 4. Native rect / roundRect / ellipse.
+    let shapeType = pptx.ShapeType.rect;
+    let rectRadius;
+    const r = radii.tl;
+    if (r > 0) {
+      const isFullyRound = r >= minDim / 2;
+      const isSquare = Math.abs(widthPx - heightPx) < 1;
+      if (isFullyRound && isSquare) {
+        shapeType = pptx.ShapeType.ellipse;
+      } else {
+        shapeType = pptx.ShapeType.roundRect;
+        const cappedR = Math.min(r, minDim / 2);
+        rectRadius = cappedR * PX_TO_INCH * layoutConfig.styleScale;
+      }
+    }
+    const finalAlpha = safeOpacity * bg.opacity;
+    const opts = {
+      x, y, w, h,
+      rotate: rotation,
+      fill: hasBg
+        ? { color: bg.hex, transparency: (1 - finalAlpha) * 100 }
+        : { type: 'none' },
+      line: hasUniformBorder ? borderInfo.options : null,
+    };
+    if (shadow) opts.shadow = shadow;
+    if (typeof rectRadius === 'number') opts.rectRadius = rectRadius;
+    items.push({
+      type: 'shape',
+      zIndex: zCursor,
+      domOrder,
+      shapeType,
+      options: opts,
+    });
+    zCursor++;
   }
 
-  const opts = {
-    x,
-    y,
-    w,
-    h,
-    rotate: rotation,
-    fill: hasBg ? { color: bg.hex, transparency: (1 - bg.opacity) * 100 } : { type: 'none' },
-    line: hasUniformBorder ? borderInfo.options : null,
-  };
-  if (typeof rectRadius === 'number') opts.rectRadius = rectRadius;
+  // 5. Inline content text overlay (corner brand mark, "LINEA D'ACQUA"
+  // badge, etc.). Rendered above any background fill so it reads on top.
+  if (contentText) {
+    const textOpts = getTextStyle(style, layoutConfig.styleScale);
+    if (!isNaN(safeOpacity) && safeOpacity < 1) {
+      // Approximate text opacity by transparency on the run — pptxgenjs
+      // doesn't expose a per-run alpha, but transparency on the color
+      // approximation is good enough for low-saturation badges.
+      textOpts.transparency = (1 - safeOpacity) * 100;
+    }
+    let align = style.textAlign || 'left';
+    if (align === 'start') align = 'left';
+    if (align === 'end') align = 'right';
+    const padding = getPadding(style, layoutConfig.styleScale);
+    items.push({
+      type: 'text',
+      zIndex: zCursor,
+      domOrder,
+      textParts: [{ text: sanitizeText(contentText), options: textOpts }],
+      options: {
+        x, y, w, h,
+        align,
+        valign: 'middle',
+        margin: 0,
+        wrap: false,
+        autoFit: true,
+        rotate: rotation,
+        inset: padding,
+      },
+    });
+  }
 
-  return {
-    type: 'shape',
-    zIndex: zIndex,
-    domOrder,
-    shapeType,
-    options: opts,
-  };
+  if (items.length === 0) return null;
+  return { items, job };
 }
 
 // 1/8pt = 1/(8*72) inch ≈ 0.001736 in. Snapping shape positions to this grid

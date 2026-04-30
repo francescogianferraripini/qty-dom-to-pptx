@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>pseudo-text-and-bg</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #ffffff; }
+  #target {
+    width: 960px;
+    height: 540px;
+    box-sizing: border-box;
+    padding: 80px;
+    font-family: Arial, sans-serif;
+    color: #1a1a1a;
+    background: #ffffff;
+    position: relative;
+  }
+  .card {
+    position: relative;
+    width: 320px;
+    height: 96px;
+    box-sizing: border-box;
+    padding: 24px 32px;
+    background: #f5f3ee;
+    border-radius: 8px;
+    font-size: 18px;
+  }
+  /* Pseudo with explicit dimensions, fully rounded background, and text
+     content. Tests the content-text overlay path. */
+  .card::after {
+    content: 'NEW';
+    position: absolute;
+    top: -10px;
+    right: -10px;
+    width: 56px;
+    height: 24px;
+    background: #c41e3a;
+    color: #ffffff;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-align: center;
+    line-height: 24px;
+  }
+</style>
+</head>
+<body>
+  <div id="target">
+    <div class="card">Annotated card</div>
+  </div>
+</body>
+</html>

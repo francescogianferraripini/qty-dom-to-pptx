@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>pseudo-inset-fullbleed</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #ffffff; }
+  #target {
+    width: 960px;
+    height: 540px;
+    box-sizing: border-box;
+    padding: 80px;
+    font-family: Arial, sans-serif;
+    color: #ffffff;
+    background: #6b1f3a;
+    position: relative;
+    overflow: hidden;
+  }
+  /* Right-half decorative panel — `inset` shorthand with auto width/height.
+     The pipeline must resolve width from (right - left). */
+  #target::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 0 55%;
+    background: linear-gradient(135deg, rgba(0,0,0,0.0), rgba(0,0,0,0.45));
+    opacity: 0.85;
+    pointer-events: none;
+    z-index: 0;
+  }
+  #target > * { position: relative; z-index: 2; }
+  h1 { font-size: 56px; margin: 0; max-width: 50%; line-height: 1.05; }
+  p { font-size: 18px; margin-top: 18px; max-width: 50%; opacity: 0.85; }
+</style>
+</head>
+<body>
+  <div id="target">
+    <h1>Hero with inset background</h1>
+    <p>The right half is painted by a pseudo-element using inset shorthand.</p>
+  </div>
+</body>
+</html>

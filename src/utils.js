@@ -214,17 +214,119 @@ export function nodeOwnScale(transformStr) {
   return Math.sqrt(sc.sx * sc.sy);
 }
 
+// Decode a `content` value as returned by getComputedStyle. Strips the
+// outer quotes and processes CSS hex escapes (`\d'acqua` → `D'acqua`).
+// Returns the empty string for `none`, `normal`, or unparseable values
+// (counters, attr(), open-quote, etc.).
+export function decodePseudoContent(contentRaw) {
+  if (!contentRaw) return '';
+  const s = contentRaw.trim();
+  if (s === 'none' || s === 'normal' || s === 'no-open-quote' || s === 'no-close-quote') return '';
+  // Match a single quoted string at the start. CSS allows a sequence of
+  // tokens (e.g. `"foo " counter(x)`); we only render the leading literal
+  // — counters/attrs require live DOM context that's expensive to mirror.
+  const m = s.match(/^(['"])((?:\\.|(?!\1).)*)\1/);
+  if (!m) return '';
+  const inner = m[2];
+  let out = '';
+  let i = 0;
+  while (i < inner.length) {
+    const c = inner[i];
+    if (c === '\\') {
+      const hex = inner.slice(i + 1).match(/^([0-9a-fA-F]{1,6})\s?/);
+      if (hex) {
+        const code = parseInt(hex[1], 16);
+        if (code) out += String.fromCodePoint(code);
+        i += 1 + hex[0].length;
+      } else if (i + 1 < inner.length) {
+        out += inner[i + 1];
+        i += 2;
+      } else {
+        i += 1;
+      }
+    } else {
+      out += c;
+      i++;
+    }
+  }
+  return out;
+}
+
+// Parse a CSS length OR percentage. Returns numeric pixels (resolving
+// percentages against `ref`) or null for `auto`/missing.
+function parseLengthOrPct(v, ref) {
+  if (v == null) return null;
+  const s = String(v).trim();
+  if (!s || s === 'auto') return null;
+  if (s.endsWith('%')) {
+    const pct = parseFloat(s);
+    if (!isFinite(pct)) return null;
+    return (pct / 100) * (ref || 0);
+  }
+  const n = parseFloat(s);
+  return isFinite(n) ? n : null;
+}
+
+// Parse one of the four position sides (top/right/bottom/left) for an
+// absolutely-positioned pseudo. Percentages resolve against `ref` (the
+// parent's width for left/right, height for top/bottom).
+function parseSide(v, ref) {
+  return parseLengthOrPct(v, ref);
+}
+
+// Measure a text-based pseudo with `width: auto` by mirroring its content
+// into a hidden, absolutely-positioned span and reading the rendered rect.
+// Browsers don't expose pseudo-element rects directly (no `getBoxQuads`
+// pseudo support outside Firefox), so a proxy is the only portable option.
+function measureTextProxy(pStyle, text) {
+  if (typeof document === 'undefined' || !text) return null;
+  let proxy;
+  try {
+    proxy = document.createElement('span');
+    const props = [
+      'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'fontVariant',
+      'fontStretch', 'letterSpacing', 'wordSpacing', 'textTransform',
+      'paddingLeft', 'paddingRight', 'paddingTop', 'paddingBottom',
+      'borderLeftWidth', 'borderRightWidth', 'borderTopWidth', 'borderBottomWidth',
+      'borderLeftStyle', 'borderRightStyle', 'borderTopStyle', 'borderBottomStyle',
+      'lineHeight', 'whiteSpace', 'boxSizing', 'textIndent', 'fontFeatureSettings',
+    ];
+    for (const p of props) {
+      const v = pStyle[p];
+      if (v) proxy.style[p] = v;
+    }
+    proxy.style.position = 'absolute';
+    proxy.style.visibility = 'hidden';
+    proxy.style.pointerEvents = 'none';
+    proxy.style.left = '-99999px';
+    proxy.style.top = '-99999px';
+    proxy.style.display = 'inline-block';
+    proxy.style.maxWidth = 'none';
+    proxy.textContent = text;
+    document.body.appendChild(proxy);
+    const rect = proxy.getBoundingClientRect();
+    document.body.removeChild(proxy);
+    proxy = null;
+    if (!rect.width || !rect.height) return null;
+    return { width: rect.width, height: rect.height };
+  } catch {
+    if (proxy && proxy.parentNode) proxy.parentNode.removeChild(proxy);
+    return null;
+  }
+}
+
 // Detect whether a pseudo-element has a layout box worth rendering — i.e.
-// it contributes a visible rectangle (background, border, or transformed
-// shape) rather than just inlining a content string. Returns null if there's
+// it contributes a visible rectangle (background, border, transform, or
+// inline content text) rather than nothing at all. Returns null if there's
 // nothing to draw, otherwise a description of where the box sits relative
 // to the parent's bounding rect along with the styles needed to render it.
 //
 // This is a best-effort approximation. Pixel-perfect pseudo-element
-// positioning would require either a DOM clone or `getBoxQuads({pseudo})`,
-// which is not portably supported. We cover the patterns that actually
-// appear in real-world decks (decorative underlines, corner brand marks,
-// abs-positioned badges) and fall back gracefully when sizes are 'auto'.
+// positioning would require `getBoxQuads({pseudo})`, which is not portably
+// supported. We cover the patterns that actually appear in real-world decks:
+// hero/divider full-bleed backgrounds (auto width/height resolved from
+// inset shorthand), accent underlines, corner brand marks (text content with
+// auto width measured via DOM proxy), abs-positioned badges, circular dots.
 export function measurePseudoBox(parent, which /* 'before' | 'after' */) {
   if (!parent || parent.nodeType !== 1 || typeof window === 'undefined') return null;
   let pStyle;
@@ -241,30 +343,32 @@ export function measurePseudoBox(parent, which /* 'before' | 'after' */) {
   if (!content || content === 'none' || content === 'normal' || display === 'none') {
     return null;
   }
+  if (pStyle.visibility === 'hidden') return null;
+  const opacityNum = parseFloat(pStyle.opacity);
+  if (!isNaN(opacityNum) && opacityNum === 0) return null;
 
-  const wRaw = parseFloat(pStyle.width);
-  const hRaw = parseFloat(pStyle.height);
-  // Without explicit dimensions we can't reliably place the box. Pseudo
-  // elements with 'auto' width/height that depend on text content are
-  // already (partially) handled by collectTextParts; we skip them here.
-  if (!isFinite(wRaw) || !isFinite(hRaw) || wRaw <= 0 || hRaw <= 0) return null;
-
-  // Visibility check: at least one paint property must produce a visible
-  // mark. A pseudo with empty content but no fill/border/transform would
-  // never show, so skip it.
-  const bg = parseColor(pStyle.backgroundColor);
-  const hasBg = bg.hex && bg.opacity > 0;
-  const borderW = parseFloat(pStyle.borderWidth) || 0;
-  const borderColor = parseColor(pStyle.borderColor);
-  const hasBorder = borderW > 0 && borderColor.hex && borderColor.opacity > 0;
-  const hasTransform = pStyle.transform && pStyle.transform !== 'none';
-  const bgImg = pStyle.backgroundImage;
-  const hasBgImage = bgImg && bgImg !== 'none';
-  if (!hasBg && !hasBorder && !hasTransform && !hasBgImage) return null;
+  const contentText = decodePseudoContent(content);
 
   const parentRect = parent.getBoundingClientRect();
   const parentStyle = window.getComputedStyle(parent);
   const position = pStyle.position;
+
+  // Resolve dimensions. % resolves against parent rect (the closest
+  // positioned ancestor would be more correct, but for the decks we care
+  // about the parent is positioned via reveal's slide layout and is the
+  // containing block). `auto` stays null for now and may be filled in later
+  // from inset sides or a text proxy.
+  let wRaw = parseLengthOrPct(pStyle.width, parentRect.width);
+  let hRaw = parseLengthOrPct(pStyle.height, parentRect.height);
+
+  const sideLeft = position === 'absolute' || position === 'fixed'
+    ? parseSide(pStyle.left, parentRect.width) : null;
+  const sideRight = position === 'absolute' || position === 'fixed'
+    ? parseSide(pStyle.right, parentRect.width) : null;
+  const sideTop = position === 'absolute' || position === 'fixed'
+    ? parseSide(pStyle.top, parentRect.height) : null;
+  const sideBottom = position === 'absolute' || position === 'fixed'
+    ? parseSide(pStyle.bottom, parentRect.height) : null;
 
   let left = NaN;
   let top = NaN;
@@ -272,20 +376,29 @@ export function measurePseudoBox(parent, which /* 'before' | 'after' */) {
   if (position === 'absolute' || position === 'fixed') {
     const ml = parseFloat(pStyle.marginLeft) || 0;
     const mt = parseFloat(pStyle.marginTop) || 0;
-    if (pStyle.left !== 'auto' && pStyle.left !== '') {
-      left = parentRect.left + (parseFloat(pStyle.left) || 0) + ml;
+
+    // Width from inset: when both left and right are set and width is auto,
+    // the box stretches between them. This is the `inset: 0 0 0 50%` case.
+    if (wRaw == null && sideLeft != null && sideRight != null) {
+      left = parentRect.left + sideLeft + ml;
+      const right = parentRect.right - sideRight;
+      wRaw = right - left;
+    } else if (sideLeft != null) {
+      left = parentRect.left + sideLeft + ml;
+    } else if (sideRight != null && wRaw != null) {
+      left = parentRect.right - sideRight - wRaw;
     }
-    if (pStyle.top !== 'auto' && pStyle.top !== '') {
-      top = parentRect.top + (parseFloat(pStyle.top) || 0) + mt;
+
+    if (hRaw == null && sideTop != null && sideBottom != null) {
+      top = parentRect.top + sideTop + mt;
+      const bottom = parentRect.bottom - sideBottom;
+      hRaw = bottom - top;
+    } else if (sideTop != null) {
+      top = parentRect.top + sideTop + mt;
+    } else if (sideBottom != null && hRaw != null) {
+      top = parentRect.bottom - sideBottom - hRaw;
     }
-    if ((isNaN(left) || pStyle.right !== 'auto') && pStyle.right !== 'auto' && pStyle.right !== '') {
-      const right = parentRect.right - (parseFloat(pStyle.right) || 0);
-      left = right - wRaw;
-    }
-    if ((isNaN(top) || pStyle.bottom !== 'auto') && pStyle.bottom !== 'auto' && pStyle.bottom !== '') {
-      const bottom = parentRect.bottom - (parseFloat(pStyle.bottom) || 0);
-      top = bottom - hRaw;
-    }
+
     if (isNaN(left)) left = parentRect.left;
     if (isNaN(top)) top = parentRect.top;
   } else {
@@ -305,14 +418,54 @@ export function measurePseudoBox(parent, which /* 'before' | 'after' */) {
     if (which === 'before') {
       top = parentRect.top + borderTop + padTop + mt;
     } else {
-      top = parentRect.bottom - borderBottom - padBottom - mb - hRaw;
+      top = parentRect.bottom - borderBottom - padBottom - mb - (hRaw || 0);
     }
   }
+
+  // Text-based pseudo with auto sizing: proxy-measure the rendered text.
+  // Re-resolve any side-anchored coordinate that depended on the missing dim.
+  if ((wRaw == null || wRaw <= 0 || hRaw == null || hRaw <= 0) && contentText) {
+    const measured = measureTextProxy(pStyle, contentText);
+    if (measured) {
+      if (wRaw == null || wRaw <= 0) wRaw = measured.width;
+      if (hRaw == null || hRaw <= 0) hRaw = measured.height;
+      if (position === 'absolute' || position === 'fixed') {
+        if (sideLeft == null && sideRight != null) {
+          left = parentRect.right - sideRight - wRaw;
+        }
+        if (sideTop == null && sideBottom != null) {
+          top = parentRect.bottom - sideBottom - hRaw;
+        }
+      } else if (which === 'after') {
+        // Recompute bottom-anchored ::after now that we know its height.
+        const padBottom = parseFloat(parentStyle.paddingBottom) || 0;
+        const borderBottom = parseFloat(parentStyle.borderBottomWidth) || 0;
+        const mb = parseFloat(pStyle.marginBottom) || 0;
+        top = parentRect.bottom - borderBottom - padBottom - mb - hRaw;
+      }
+    }
+  }
+
+  if (wRaw == null || hRaw == null || wRaw <= 0 || hRaw <= 0) return null;
+
+  // Visibility check: at least one paint property must produce a visible
+  // mark. A pseudo with empty content and no fill/border/transform would
+  // never show, so skip it.
+  const bg = parseColor(pStyle.backgroundColor);
+  const hasBg = bg.hex && bg.opacity > 0;
+  const borderW = parseFloat(pStyle.borderWidth) || 0;
+  const borderColor = parseColor(pStyle.borderColor);
+  const hasBorder = borderW > 0 && borderColor.hex && borderColor.opacity > 0;
+  const hasTransform = pStyle.transform && pStyle.transform !== 'none';
+  const bgImg = pStyle.backgroundImage;
+  const hasBgImage = bgImg && bgImg !== 'none';
+  if (!hasBg && !hasBorder && !hasTransform && !hasBgImage && !contentText) return null;
 
   return {
     rect: { left, top, width: wRaw, height: hRaw },
     style: pStyle,
     parentStyle,
+    contentText,
   };
 }
 

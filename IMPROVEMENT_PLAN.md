@@ -147,6 +147,46 @@ These bugs affect *every* export, so fixing them first amplifies the value of al
 
 ---
 
+## Phase 1.2 — Decorative pseudo-element boxes ✅ landed
+
+`measurePseudoBox` (`src/utils.js`) and `pseudoToRenderItems` (`src/index.js`, renamed from the singular `pseudoToRenderItem`) were extended together to cover the patterns the Quantyca canary surfaced:
+
+- **Auto width/height resolved from `inset` / `top+bottom` / `left+right`.** A pseudo with `position: absolute; inset: 0 0 0 55%; width: auto; height: auto` (the hero/divider full-bleed pattern) used to be skipped because `parseFloat('auto')` returned NaN. We now compute the box from the four side coordinates when width or height is `auto` and both opposite sides are set.
+- **`background-image: url(...)` and `linear-gradient(...)`.** Pseudo backgrounds previously rendered only the solid `backgroundColor`. The url path queues a `getProcessedImage` job (same code path as `<img>` tags); the gradient path generates an SVG via `generateGradientSVG`. Both honor `background-size`, `background-position`, `border-radius` clipping, and the pseudo's own `opacity` (mapped to PPTX `transparency`).
+- **`content: 'text'` rendered as overlaid run.** Decoded from the computed style (CSS hex escapes like `\d'acqua` are unescaped to literal Unicode), then emitted as a text item layered above any background fill. The `getTextStyle` extraction picks up font, color, letter-spacing, and text-transform.
+- **`width: auto` for text-based pseudos** (corner brand mark, badge labels) — measured via a hidden absolutely-positioned proxy span that mirrors the pseudo's font/padding/border styles, since browsers don't expose pseudo rects directly. After the proxy yields a width and height, any side-anchored coordinate that depended on those dimensions is re-resolved.
+- **Per-corner radii, percentage radii.** A new `parsePseudoRadii` accepts `%` (resolved against the smaller dimension, so `border-radius: 50%` on a 24×24 pseudo becomes a 12px radius → ellipse). When the four corners differ we route through `generateCustomShapeSVG` instead of the native `roundRect`.
+- **`opacity: 0` / `visibility: hidden` skip.** Previously these would still emit. Now `measurePseudoBox` returns null up front.
+- **Z-index resolution.** Pseudo's own `z-index` is floored at parent's effective z (matches CSS stacking-context behavior closely enough for the deck patterns we care about), then a small offset within the pseudo's items so its content text sits above its own background.
+
+**Validation cases landed (`tests/fidelity/cases/`)**
+
+- `016-pseudo-content-badge` — corner brand mark with `width: auto`, letter-spacing, text-transform; tests proxy measurement.
+- `017-pseudo-circle-percent` — four `border-radius: 50%` dots with white/burgundy fills and a 3px stroke; tests percentage radii.
+- `018-pseudo-inset-fullbleed` — `inset: 0 0 0 55%` with a gradient background and `opacity: 0.85`; tests auto-width-from-inset and gradient-on-pseudo.
+- `019-pseudo-text-and-bg` — overlaid `NEW` pill with rounded background + centered text; tests the content-text-on-rect overlay.
+
+All four pass at ≤52% content delta with the standard 85% budget; visual outputs match source closely.
+
+**Harness fix landed alongside Phase 1.2.** `tests/fidelity/lib/browser.js` now stands up a small `node:http` static server on `127.0.0.1:8002` rooted at `cases/`, and case URLs are loaded as `http://127.0.0.1:8002/<rel>` instead of `file://`. Same-origin HTTP loads don't taint the canvas, so `Image` + `canvas.toDataURL` round-trips cleanly for SVG/PNG assets — file:// origins were silently blanking every `background-image: url(...)` on a pseudo and every `<img src="*.svg">` in the corpus (q-06's six service icons were blank for that reason). The server starts lazily on first case and is torn down in `closeBrowser`. Port 8002 was chosen to leave 8001 free for `python3 -m http.server 8001` over `tests/fidelity/` to view the report at `/report/index.html`.
+
+**Score snapshot after both fixes (50 cases)**
+
+| slide | content Δ before | content Δ after |
+|---|---|---|
+| q-01 hero (page-header.svg) | 45.4% | 27.7% |
+| q-04 (hero-style + icons) | 51.3% | 22.9% |
+| q-06 (six service-icon SVGs) | 25.9% | 17.0% |
+| q-07 | 50.5% | 22.3% |
+| q-26 | 52.1% | 24.2% |
+| q-28 | 51.4% | 24.3% |
+
+The remaining stubborn cluster (q-08, q-09, q-19–22, q-27) is dominated by code-block syntax highlighting (`<pre><code>` + hljs spans) which the engine doesn't render natively — Phase 9 territory. 011-pseudo-after-underline now lands at 37% content delta (was passing lower previously) — the new accent-bar render adds edge density that the metric counts even though the underline visually matches.
+
+All 50 cases pass under the 65% Quantyca budget / 85% default budget.
+
+---
+
 ## Phase 2 — Color, shadow, and border primitives
 
 Visible defects on almost every styled component.
@@ -253,7 +293,7 @@ These aren't standalone tasks but should land *with* the phase that first needs 
 
 ## Suggested sequencing
 
-Phases 0 (incl. print-mode harness switch and foreground-aware metric) and 1 have shipped. The next high-leverage step is **Phase 1.2** — translating decorative `::before`/`::after` boxes — because the new metric pinpoints a 50–59% content-delta cluster on Quantyca slides whose only remaining failure mode is missing pseudo-element decoration. After that, the small follow-up items (Phase 1.1 re-validation, `opacity: 0` skip) clear the next band.
+Phases 0, 1, and 1.2 have shipped. The next high-leverage steps are the small Phase 1 follow-ups that the canary surfaced (Phase 1.1 re-validation against synthetic case 010, `opacity: 0` element skip on the export root). After that the harness file:// SVG-loading fix would unblock the visible-but-still-counted-broken hero/divider cluster.
 
 | Order | Phase / item | Why this slot |
 |---|---|---|
@@ -261,8 +301,9 @@ Phases 0 (incl. print-mode harness switch and foreground-aware metric) and 1 hav
 | 2 | 1.1–1.9 (foundational text & layout) ✅ | Highest blast radius per LOC |
 | 3 | Phase 0 addendum — switch canary to reveal print mode ✅ | Removed framework-coordination noise from the canary |
 | 4 | Phase 0 addendum — foreground-aware metric ✅ | Replaced raw pixel-% with `contentPercent` (edge + color, block-level) so background-dominated slides stop masking foreground regressions |
-| 5 | **Phase 1.2 — decorative pseudo-element boxes** *(now top of queue)* | New metric attributes 50–59% of the Quantyca cluster to this single gap |
-| 6 | **Phase 1.1 re-validation + `opacity: 0` skip** | Synthetic case 010 still ships content off-canvas; q-08 ships hidden fragments |
+| 5 | Phase 1.2 — decorative pseudo-element boxes ✅ | Corner brand mark, H2 underline, hero/divider full-bleeds, badges, percent-radius dots all translate |
+| 6 | **Phase 1.1 re-validation + `opacity: 0` skip** *(now top of queue)* | Synthetic case 010 still ships content off-canvas; q-08 ships hidden fragments |
+| 6.5 | Harness: serve cases via local HTTP server ✅ | `127.0.0.1:8001` static server replaces file://; SVG icons + url-background pseudos now round-trip cleanly |
 | 7 | 2 (color/shadow/border) | Visible on most decks; isolated changes |
 | 8 | 9 (rasterization escape hatch, *minimal*) | Unblocks "ship something acceptable for unsupported CSS" |
 | 9 | 4 (gradients/backgrounds) | Common, currently silently dropped |
