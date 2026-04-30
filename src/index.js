@@ -26,6 +26,7 @@ import {
   svgToPng,
   svgToSvg,
   getPadding,
+  paddingToPptxMargin,
   getSoftEdges,
   generateBlurredSVG,
   getBorderInfo,
@@ -738,11 +739,10 @@ function pseudoToRenderItems(measured, layoutConfig, pptx, parentZ, domOrder) {
         x, y, w, h,
         align,
         valign: 'middle',
-        margin: 0,
+        margin: paddingToPptxMargin(padding),
         wrap: false,
         autoFit: true,
         rotate: rotation,
-        inset: padding,
       },
     });
   }
@@ -1704,7 +1704,13 @@ function prepareRenderItem(
         }
       }
 
-      textPayload = { text: textParts, align, valign, inset: padding, intentionalSize };
+      textPayload = {
+        text: textParts,
+        align,
+        valign,
+        margin: paddingToPptxMargin(padding),
+        intentionalSize,
+      };
     }
   }
 
@@ -1795,9 +1801,8 @@ function prepareRenderItem(
           h,
           align: textPayload.align,
           valign: textPayload.valign,
-          inset: textPayload.inset,
           rotate: rotation,
-          margin: 0,
+          margin: textPayload.margin,
           wrap: true,
           // autoFit:true emits <a:spAutoFit/> ("resize shape to fit text"),
           // which collapses a flex/grid box back to text size. When the
@@ -1920,8 +1925,7 @@ function prepareRenderItem(
           rotate: rotation,
           align: textPayload.align,
           valign: textPayload.valign,
-          inset: textPayload.inset,
-          margin: 0,
+          margin: textPayload.margin,
           wrap: true,
           // See note in the bg-image branch: spAutoFit collapses the
           // box. Disable when the alignment branch flagged the box as

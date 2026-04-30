@@ -1046,6 +1046,14 @@ export function getPadding(style, scale) {
   ];
 }
 
+// pptxgenjs's `inset` option only accepts a scalar (an array silently drops);
+// its `margin` option accepts an array `[left, right, bottom, top]` in points
+// and writes through to lIns/rIns/bIns/tIns. Convert getPadding's CSS-order
+// inches into that shape so CSS padding lands in the rendered text frame.
+export function paddingToPptxMargin(padding) {
+  return [padding[3] * 72, padding[1] * 72, padding[2] * 72, padding[0] * 72];
+}
+
 export function getSoftEdges(filterStr, scale) {
   if (!filterStr || filterStr === 'none') return null;
   const match = filterStr.match(/blur\(([\d.]+)px\)/);
