@@ -23,6 +23,7 @@ import {
   getRotation,
   hasSkew,
   getWritingModeVert,
+  combineVertWithRotation,
   svgToPng,
   svgToSvg,
   getPadding,
@@ -1019,11 +1020,16 @@ function prepareRenderItem(
   if (rect.width < 0.5 || rect.height < 0.5) return null;
 
   const zIndex = effectiveZIndex;
-  const rotation = getRotation(style.transform);
+  let rotation = getRotation(style.transform);
   if (style.transform && style.transform !== 'none' && hasSkew(style.transform)) {
     _warnSkewOnce(node, style.transform);
   }
-  const writingModeVert = getWritingModeVert(style.writingMode, style.textOrientation);
+  let writingModeVert = getWritingModeVert(style.writingMode, style.textOrientation);
+  // Canonical CSS pattern for "axis label that reads bottom-to-top" is
+  // `writing-mode: vertical-rl; transform: rotate(180deg)`. Fold the 180° into
+  // the OOXML `vert` value so we don't rotate the shape and the vertical text
+  // run twice. For other rotation values both stay independent.
+  ({ vert: writingModeVert, rotation } = combineVertWithRotation(writingModeVert, rotation));
   const elementOpacity = parseFloat(style.opacity);
   const safeOpacity = isNaN(elementOpacity) ? 1 : elementOpacity;
 

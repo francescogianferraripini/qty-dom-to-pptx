@@ -1144,6 +1144,17 @@ export function isTextContainer(node) {
   const children = Array.from(node.children);
   if (children.length === 0) return true;
 
+  // When the parent is flex/grid with multiple children, those children are
+  // blockified and laid out independently (e.g. `justify-content: space-between`
+  // distributes them along the main axis). Computed `display` still reads as
+  // "inline" for spans, but flattening them into a single inline-text run loses
+  // their per-item positions. Force per-child render items in that case.
+  const parentStyle = window.getComputedStyle(node);
+  const parentIsFlexOrGrid = ['flex', 'inline-flex', 'grid', 'inline-grid'].includes(
+    parentStyle.display
+  );
+  const parentWritingMode = parentStyle.writingMode || 'horizontal-tb';
+
   const isSafeInline = (el) => {
     // 1. Reject Web Components / Custom Elements
     if (el.tagName.includes('-')) return false;
@@ -1169,6 +1180,18 @@ export function isTextContainer(node) {
 
     const style = window.getComputedStyle(el);
     const display = style.display;
+
+    // Reject children that opt into their own visual orientation — vertical
+    // writing-mode different from the parent, or a non-trivial transform
+    // (rotate, etc.). These cannot be represented as a flat inline run inside
+    // the parent's text flow; they need their own render item so we capture the
+    // rotated bbox and emit the correct OOXML `vert` value.
+    if ((style.writingMode || 'horizontal-tb') !== parentWritingMode) return false;
+    if (style.transform && style.transform !== 'none') return false;
+
+    // Multi-child flex/grid containers blockify their children — see comment
+    // above isSafeInline.
+    if (parentIsFlexOrGrid && children.length > 1) return false;
 
     // 4. Standard Inline Tag Check
     const isInlineTag = ['SPAN', 'B', 'STRONG', 'EM', 'I', 'A', 'SMALL', 'MARK'].includes(
@@ -1374,9 +1397,16 @@ export function getWritingModeVert(writingMode, textOrientation) {
 
   switch (writingMode) {
     case 'vertical-rl':
-      return isUpright ? 'wordArtVertRtl' : 'eaVert';
+      // Latin in `vertical-rl` (default `mixed` orientation) rotates each
+      // character 90° CW so the line reads top-to-bottom — that is OOXML
+      // `vert`. `eaVert`/`wordArtVertRtl` stack characters upright, which is
+      // correct for `text-orientation: upright`.
+      return isUpright ? 'wordArtVertRtl' : 'vert';
     case 'vertical-lr':
-      return isUpright ? 'wordArtVert' : 'mongolianVert';
+      // Same character orientation as `vertical-rl`; only the multi-line
+      // stacking direction differs. Single-line axis labels look identical so
+      // map to `vert` as well.
+      return isUpright ? 'wordArtVert' : 'vert';
     case 'sideways-rl':
       return 'vert';
     case 'sideways-lr':
@@ -1384,6 +1414,32 @@ export function getWritingModeVert(writingMode, textOrientation) {
     default:
       return null;
   }
+}
+
+/**
+ * The canonical CSS pattern for "axis label that reads bottom-to-top" is
+ * `writing-mode: vertical-rl; transform: rotate(180deg)` (for left-side axis
+ * labels). The combo flips a top-to-bottom vertical run into bottom-to-top.
+ *
+ * Returns `{ vert, rotation }` where the writing-mode `rotate(180deg)` has
+ * been folded into the OOXML `vert` value, so the caller can apply zero
+ * shape rotation. For other rotation values the original vert/rotation are
+ * returned unchanged — those should be applied as a normal shape rotation
+ * around the bounding box.
+ */
+export function combineVertWithRotation(vert, rotation) {
+  if (!vert || !rotation) return { vert, rotation };
+  if (Math.abs(rotation) !== 180) return { vert, rotation };
+
+  // 180° flips the reading direction along the line axis.
+  const flip = {
+    vert: 'vert270',
+    vert270: 'vert',
+    eaVert: 'eaVert', // upright chars — 180° rotates the box, not the chars
+    wordArtVert: 'wordArtVertRtl',
+    wordArtVertRtl: 'wordArtVert',
+  };
+  return { vert: flip[vert] || vert, rotation: 0 };
 }
 
 /**
