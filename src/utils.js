@@ -623,7 +623,14 @@ export function extractTableData(node, scale, styleScale = scale) {
         const fallback = getGradientFallbackColor(style.backgroundImage);
         if (fallback) bg = parseColor(fallback);
       }
-      const fill = bg.hex && bg.opacity > 0 ? { color: bg.hex } : null;
+      const fill = bg.hex && bg.opacity > 0
+        ? {
+            color: bg.hex,
+            ...(bg.opacity < 1
+              ? { transparency: Math.round((1 - bg.opacity) * 100) }
+              : {}),
+          }
+        : null;
 
       // C. Alignment
       let align = 'left';
