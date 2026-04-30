@@ -125,42 +125,64 @@ const GENERIC_FONT_MAP = {
   fangsong: 'SimSun',
 };
 
-// Splits a CSS font-family value, honoring quoted segments, and resolves
-// generic keywords to a concrete fallback PowerPoint will display. Returns a
-// comma-separated string suitable for pptxgenjs `fontFace`.
+// Names that frequently lead a CSS font stack on Mac/Linux but aren't shipped
+// with Windows PowerPoint. When such a name appears AND the chain ends with a
+// generic (e.g. `monospace`), we skip it so the generic's mapping wins —
+// otherwise PowerPoint/LibreOffice render the unknown name with the document
+// default (a proportional face), which loses monospace fidelity for code
+// blocks. Embeddable webfonts (Poppins, Inter, etc.) are NOT in this list and
+// remain the first choice so font embedding still works.
+const NON_WINDOWS_FONTS = new Set([
+  'sfmono-regular', 'sf mono', '-apple-system', 'blinkmacsystemfont',
+  'menlo', 'monaco', 'apple color emoji',
+  'liberation mono', 'liberation sans', 'liberation serif',
+  'dejavu sans', 'dejavu sans mono', 'dejavu serif',
+  'ubuntu', 'ubuntu mono', 'cantarell', 'noto sans',
+]);
+
+// Resolves a CSS `font-family` value to the *single* font name we emit as the
+// OOXML `typeface` attribute. The OOXML schema treats `typeface` as one font
+// name — not a CSS-style fallback list — so PowerPoint and LibreOffice both
+// look up the entire string verbatim and fall back to the document default
+// when the name doesn't resolve. Returning a comma list here was silently
+// breaking code-block fidelity on the quantyca deck.
+//
+// Strategy: walk the chain left-to-right, mapping generics inline. Skip names
+// in NON_WINDOWS_FONTS when the chain has a terminal generic (so monospace's
+// `Consolas` mapping wins over a Mac-only `SFMono-Regular`). Otherwise the
+// first concrete name wins, which preserves embedded webfonts.
 //
 // Important: pptxgenjs concatenates the returned string straight into an XML
-// attribute value (e.g. `<a:latin typeface="...">`) without entity-escaping,
-// so we MUST strip every embedded `"` here or the resulting OOXML is invalid
-// and PowerPoint/LibreOffice will fail to render the slide. We also drop
-// stray single quotes for symmetry.
+// attribute value without entity-escaping, so we strip embedded quotes.
 export function resolveFontFaceList(fontFamilyStr) {
   if (!fontFamilyStr) return 'Calibri';
-  // Tokenize on commas at depth 0. We then strip outer quotes per-token.
+
   const rawTokens = fontFamilyStr.split(',');
-  const out = [];
-  const seen = new Set();
+  const tokens = [];
   for (let token of rawTokens) {
     let name = token.trim();
-    // Strip a single layer of matching outer quotes if present.
     if (
       (name.startsWith('"') && name.endsWith('"')) ||
       (name.startsWith("'") && name.endsWith("'"))
     ) {
       name = name.slice(1, -1).trim();
     }
-    // Defensive: even if a name still contains stray quotes, remove them so
-    // the attribute value can never break the XML.
     name = name.replace(/["']/g, '');
-    if (!name) continue;
-    const generic = GENERIC_FONT_MAP[name.toLowerCase()];
-    if (generic) name = generic;
-    const key = name.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(name);
+    if (name) tokens.push(name);
   }
-  return out.length ? out.join(', ') : 'Calibri';
+  if (!tokens.length) return 'Calibri';
+
+  const lastGeneric = GENERIC_FONT_MAP[tokens[tokens.length - 1].toLowerCase()];
+
+  for (const name of tokens) {
+    const lower = name.toLowerCase();
+    const generic = GENERIC_FONT_MAP[lower];
+    if (generic) return generic;
+    if (lastGeneric && NON_WINDOWS_FONTS.has(lower)) continue;
+    return name;
+  }
+
+  return lastGeneric || 'Calibri';
 }
 
 // Walks ancestors of `root` and accumulates uniform-scale components from
