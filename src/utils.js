@@ -529,24 +529,51 @@ export function extractTableData(node, scale, styleScale = scale) {
   // Note: This assumes a fixed grid. Complex colspan/rowspan on the first row
   // might skew widths, but getBoundingClientRect captures the rendered result.
   const firstRow = node.querySelector('tr');
+  // Track each colWidths slot's nowrap flag so we can inflate columns whose
+  // CSS asks the browser to shrink-wrap them (`width:1%; white-space:nowrap`).
+  // The browser's auto-sizing produces a column tight to its widest content
+  // *for the font Chrome chose*; PPTX/LibreOffice often falls back to a
+  // slightly different (typically wider) face, which makes the same content
+  // overflow and wrap — visible on highlight.js line-number columns where
+  // 2-digit numbers like "10" split into "1" / "0".
+  const colNowrap = [];
   if (firstRow) {
     const cells = Array.from(firstRow.children);
     cells.forEach((cell) => {
       const rect = cell.getBoundingClientRect();
       const colspan = parseInt(cell.getAttribute('colspan')) || 1;
       const wIn = (rect.width * (1 / 96) * scale) / colspan;
+      const cs = window.getComputedStyle(cell);
+      const isNowrap = cs.whiteSpace === 'nowrap' || cs.whiteSpace === 'pre';
       for (let i = 0; i < colspan; i++) {
         colWidths.push(wIn);
+        colNowrap.push(isNowrap);
       }
     });
   }
+  // Inflate nowrap columns by ~10%, donating that width from the widest
+  // wrapping column so the table's total width stays put.
+  colNowrap.forEach((isNowrap, i) => {
+    if (!isNowrap) return;
+    const bonus = colWidths[i] * 0.1;
+    let widestI = -1;
+    let widest = 0;
+    colWidths.forEach((w, j) => {
+      if (j === i || colNowrap[j]) return;
+      if (w > widest) { widest = w; widestI = j; }
+    });
+    if (widestI >= 0 && colWidths[widestI] - bonus > 0) {
+      colWidths[i] += bonus;
+      colWidths[widestI] -= bonus;
+    }
+  });
 
   const tableStyle = window.getComputedStyle(node);
   const borderSpacing = tableStyle.borderSpacing.split(' ');
   const hSpace = parseFloat(borderSpacing[0]) || 0;
   const vSpace = parseFloat(borderSpacing[1] || borderSpacing[0]) || 0;
-  const hSpacePt = hSpace * 0.75 * styleScale;
-  const vSpacePt = vSpace * 0.75 * styleScale;
+  const hSpaceIn = hSpace * (1 / 96) * styleScale;
+  const vSpaceIn = vSpace * (1 / 96) * styleScale;
 
   // 2. Iterate Rows
   const trList = node.querySelectorAll('tr');
@@ -585,17 +612,18 @@ export function extractTableData(node, scale, styleScale = scale) {
       if (style.verticalAlign === 'middle') valign = 'middle';
       if (style.verticalAlign === 'bottom') valign = 'bottom';
 
-      // D. Padding (Margins in PPTX)
-      // CSS Padding px -> PPTX Margin pt (logical px → styleScale)
+      // D. Padding (Margins in PPTX) — keep in inches.
+      // PptxGenJS picks units adaptively: if margin[0] >= 1 it treats the whole
+      // array as points, else as inches. Mixing intended-pt and intended-in
+      // values (e.g. tiny top + large right) flips the interpretation and
+      // explodes large values to inches. Pass everything in inches so the
+      // unit branch is stable regardless of magnitude.
       const padding = getPadding(style, styleScale);
-      // getPadding returns [top, right, bottom, left] in inches relative to scale
-      // PptxGenJS expects points (pt) for margin: [t, r, b, l]
-      // or discrete properties. Let's use discrete for clarity.
       const margin = [
-        padding[0] * 72 + vSpacePt / 2, // top
-        padding[1] * 72 + hSpacePt / 2, // right
-        padding[2] * 72 + vSpacePt / 2, // bottom
-        padding[3] * 72 + hSpacePt / 2, // left
+        padding[0] + vSpaceIn / 2, // top
+        padding[1] + hSpaceIn / 2, // right
+        padding[2] + vSpaceIn / 2, // bottom
+        padding[3] + hSpaceIn / 2, // left
       ];
 
       // E. Borders (logical width → styleScale)
@@ -813,43 +841,79 @@ export function generateCompositeBorderSVG(w, h, radius, sides) {
 
 /**
  * Generates an SVG data URL for a solid shape with non-uniform corner radii.
+ * Accepts either scalar radii (`{tl, tr, br, bl}`) or elliptical per-corner
+ * pairs (`{tl: {x, y}, tr: {x, y}, ...}`).
  */
 export function generateCustomShapeSVG(w, h, color, opacity, radii) {
-  let { tl, tr, br, bl } = radii;
-
-  // Clamp radii using CSS spec logic (avoid overlap)
-  const factor = Math.min(
-    w / (tl + tr) || Infinity,
-    h / (tr + br) || Infinity,
-    w / (br + bl) || Infinity,
-    h / (bl + tl) || Infinity
+  const r = normalizeRadiiXY(radii);
+  clampRadiiXY(r, w, h);
+  return wrapShapeSvg(
+    w,
+    h,
+    buildEllipticalPath(w, h, r),
+    `fill="#${color}" fill-opacity="${opacity}"`
   );
+}
 
-  if (factor < 1) {
-    tl *= factor;
-    tr *= factor;
-    br *= factor;
-    bl *= factor;
+// Convert either scalar `{tl, tr, br, bl}` or elliptical `{tl:{x,y}, ...}`
+// radii into the elliptical form. Mutates a fresh copy.
+function normalizeRadiiXY(radii) {
+  const out = {};
+  for (const k of ['tl', 'tr', 'br', 'bl']) {
+    const v = radii[k];
+    if (v && typeof v === 'object') {
+      out[k] = { x: v.x || 0, y: v.y || 0 };
+    } else {
+      const n = v || 0;
+      out[k] = { x: n, y: n };
+    }
   }
+  return out;
+}
 
-  const path = `
-    M ${tl} 0
-    L ${w - tr} 0
-    A ${tr} ${tr} 0 0 1 ${w} ${tr}
-    L ${w} ${h - br}
-    A ${br} ${br} 0 0 1 ${w - br} ${h}
-    L ${bl} ${h}
-    A ${bl} ${bl} 0 0 1 0 ${h - bl}
-    L 0 ${tl}
-    A ${tl} ${tl} 0 0 1 ${tl} 0
-    Z
-  `;
+// CSS Backgrounds 3 §5.5: when adjacent corner radii would overlap, scale
+// every radius by the same factor so the largest pair fits the available
+// edge length. Computed independently for each axis (rx vs ry) since the
+// shorthand only enforces overlap-free along its own axis.
+function clampRadiiXY(r, w, h) {
+  const { tl, tr, br, bl } = r;
+  const factor = Math.min(
+    w / (tl.x + tr.x) || Infinity,
+    w / (bl.x + br.x) || Infinity,
+    h / (tl.y + bl.y) || Infinity,
+    h / (tr.y + br.y) || Infinity,
+    1
+  );
+  if (factor < 1) {
+    for (const k of ['tl', 'tr', 'br', 'bl']) {
+      r[k].x *= factor;
+      r[k].y *= factor;
+    }
+  }
+}
 
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
-      <path d="${path}" fill="#${color}" fill-opacity="${opacity}" />
-    </svg>`;
+function buildEllipticalPath(w, h, r) {
+  const { tl, tr, br, bl } = r;
+  return (
+    `M ${tl.x} 0 ` +
+    `L ${w - tr.x} 0 ` +
+    `A ${tr.x} ${tr.y} 0 0 1 ${w} ${tr.y} ` +
+    `L ${w} ${h - br.y} ` +
+    `A ${br.x} ${br.y} 0 0 1 ${w - br.x} ${h} ` +
+    `L ${bl.x} ${h} ` +
+    `A ${bl.x} ${bl.y} 0 0 1 0 ${h - bl.y} ` +
+    `L 0 ${tl.y} ` +
+    `A ${tl.x} ${tl.y} 0 0 1 ${tl.x} 0 ` +
+    `Z`
+  );
+}
 
+function wrapShapeSvg(w, h, pathD, fillAttrs, defs = '') {
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">` +
+    defs +
+    `<path d="${pathD}" ${fillAttrs} />` +
+    `</svg>`;
   return 'data:image/svg+xml;base64,' + btoa(svg);
 }
 
@@ -1111,12 +1175,67 @@ export function isTextContainer(node) {
 }
 
 export function getRotation(transformStr) {
-  if (!transformStr || transformStr === 'none') return 0;
-  const values = transformStr.split('(')[1].split(')')[0].split(',');
-  if (values.length < 4) return 0;
-  const a = parseFloat(values[0]);
-  const b = parseFloat(values[1]);
-  return Math.round(Math.atan2(b, a) * (180 / Math.PI));
+  return Math.round(decomposeMatrix2D(transformStr).rotation);
+}
+
+/**
+ * Decomposes a CSS computed `transform` matrix into translate / rotate /
+ * scale / skew components. `getComputedStyle` always returns the matrix form
+ * (`matrix(...)` for 2D or `matrix3d(...)` for 3D-augmented), so this works
+ * regardless of how the author wrote the transform.
+ *
+ * Decomposition: M = T(tx, ty) · R(θ) · [[sx, sx·tan(k)], [0, sy]]
+ *
+ * - rotation in degrees
+ * - skewX in degrees — a non-zero value (>~0.5°) indicates the element is
+ *   sheared, which PPTX shapes cannot represent natively. Callers should
+ *   rasterize or accept the distortion.
+ * - sx, sy: scale factors (post-rotation removal)
+ *
+ * Returns identity for `none` or unparseable inputs.
+ */
+export function decomposeMatrix2D(transformStr) {
+  const id = { tx: 0, ty: 0, sx: 1, sy: 1, rotation: 0, skewX: 0 };
+  if (!transformStr || transformStr === 'none') return id;
+  let v = null;
+  const m2 = transformStr.match(/^matrix\(([^)]+)\)$/);
+  if (m2) {
+    v = m2[1].split(',').map((s) => parseFloat(s.trim()));
+    if (v.length < 6) return id;
+  } else {
+    const m3 = transformStr.match(/^matrix3d\(([^)]+)\)$/);
+    if (!m3) return id;
+    const all = m3[1].split(',').map((s) => parseFloat(s.trim()));
+    if (all.length < 16) return id;
+    // 2D submatrix of matrix3d: column-major, take [m11, m12, m21, m22, m41, m42].
+    v = [all[0], all[1], all[4], all[5], all[12], all[13]];
+  }
+  const [a, b, c, d, e, f] = v;
+  if (![a, b, c, d, e, f].every(isFinite)) return id;
+
+  const rotationRad = Math.atan2(b, a);
+  const sx = Math.hypot(a, b);
+  // Remove rotation from (c, d): c' = cosθ·c + sinθ·d ; d' = -sinθ·c + cosθ·d
+  const cosθ = Math.cos(rotationRad);
+  const sinθ = Math.sin(rotationRad);
+  const cRot = cosθ * c + sinθ * d;
+  const dRot = -sinθ * c + cosθ * d;
+  const sy = dRot;
+  const skewXRad = sx > 1e-9 ? Math.atan2(cRot, sy) : 0;
+
+  return {
+    tx: e,
+    ty: f,
+    sx: isFinite(sx) && sx > 0 ? sx : 1,
+    sy: isFinite(sy) && Math.abs(sy) > 1e-9 ? sy : 1,
+    rotation: (rotationRad * 180) / Math.PI,
+    skewX: (skewXRad * 180) / Math.PI,
+  };
+}
+
+/** True if the element's computed transform contains a non-trivial skew. */
+export function hasSkew(transformStr) {
+  return Math.abs(decomposeMatrix2D(transformStr).skewX) > 0.5;
 }
 
 const horizMap = (v) => {
@@ -1442,14 +1561,24 @@ export function getVisibleShadow(shadowStr, scale) {
 
 /**
  * Compute per-corner radii in CSS px, resolving % to the smaller dimension.
+ * Returns scalar radii (a single value per corner). Used by shadow-composite
+ * helpers that don't render elliptical arcs — see `getCornerRadiiXY` for the
+ * full elliptical form.
  */
 export function getCornerRadii(style, widthPx, heightPx) {
   const minDim = Math.min(widthPx, heightPx);
   const parse = (v) => {
     if (!v) return 0;
     const s = String(v);
-    if (s.includes('%')) return (parseFloat(s) / 100) * minDim;
-    return parseFloat(s) || 0;
+    // computed style for an elliptical corner returns "rx ry" (e.g. "80px 24px");
+    // collapse to the larger axis so the scalar radius covers the visible curve.
+    const tokens = s.trim().split(/\s+/);
+    if (tokens.length === 2) {
+      const a = parseR(tokens[0], minDim);
+      const b = parseR(tokens[1], minDim);
+      return Math.max(a, b);
+    }
+    return parseR(s, minDim);
   };
   return {
     tl: parse(style.borderTopLeftRadius),
@@ -1457,6 +1586,62 @@ export function getCornerRadii(style, widthPx, heightPx) {
     br: parse(style.borderBottomRightRadius),
     bl: parse(style.borderBottomLeftRadius),
   };
+}
+
+function parseR(s, basis) {
+  if (!s) return 0;
+  if (s.includes('%')) {
+    const pct = parseFloat(s);
+    return isFinite(pct) ? (pct / 100) * basis : 0;
+  }
+  const n = parseFloat(s);
+  return isFinite(n) ? n : 0;
+}
+
+/**
+ * Compute per-corner *elliptical* radii in CSS px. Each corner returns
+ * `{ x, y }` where `x` is the horizontal radius (resolved against widthPx for
+ * percentages) and `y` is the vertical radius (resolved against heightPx).
+ * For uniform corners both axes match. The `border-radius: rx / ry` syntax
+ * (e.g. `80px / 24px`) and per-corner long-hands are both handled — browsers
+ * expand the shorthand into per-corner long-hands at computed-style time.
+ *
+ * Use this for emitting elliptical SVG arc paths; use the scalar
+ * `getCornerRadii` for shadow halos that approximate with circular geometry.
+ */
+export function getCornerRadiiXY(style, widthPx, heightPx) {
+  const parsePair = (v) => {
+    if (!v) return { x: 0, y: 0 };
+    const tokens = String(v).trim().split(/\s+/);
+    const rx = parseR(tokens[0] || '0', widthPx);
+    const ry = parseR(tokens[1] !== undefined ? tokens[1] : tokens[0] || '0', heightPx);
+    return { x: rx, y: ry };
+  };
+  return {
+    tl: parsePair(style.borderTopLeftRadius),
+    tr: parsePair(style.borderTopRightRadius),
+    br: parsePair(style.borderBottomRightRadius),
+    bl: parsePair(style.borderBottomLeftRadius),
+  };
+}
+
+/** True if any corner has a non-zero elliptical (rx≠ry) component. */
+export function isElliptical(radiiXY) {
+  for (const k of ['tl', 'tr', 'br', 'bl']) {
+    const r = radiiXY[k];
+    if (Math.abs(r.x - r.y) > 0.5) return true;
+  }
+  return false;
+}
+
+/** True if corners are not all equal (per-corner divergence). */
+export function isPerCorner(radiiXY) {
+  const t = radiiXY.tl;
+  for (const k of ['tr', 'br', 'bl']) {
+    const r = radiiXY[k];
+    if (Math.abs(r.x - t.x) > 0.5 || Math.abs(r.y - t.y) > 0.5) return true;
+  }
+  return false;
 }
 
 function tracePath(ctx, x, y, w, h, radii) {
@@ -1759,29 +1944,18 @@ export function generateGradientSVG(w, h, bgString, radius, border) {
       strokeAttr = `stroke="#${border.color}" stroke-width="${border.width}"`;
     }
 
-    let tl = 0, tr = 0, br = 0, bl = 0;
+    // Accept scalar (number), per-corner scalars (`{tl, tr, br, bl}`), or
+    // elliptical per-corner (`{tl: {x, y}, ...}`).
+    let radiiInput;
     if (typeof radius === 'object' && radius !== null) {
-      tl = radius.tl || 0;
-      tr = radius.tr || 0;
-      br = radius.br || 0;
-      bl = radius.bl || 0;
+      radiiInput = radius;
     } else {
-      tl = tr = br = bl = radius || 0;
+      const n = radius || 0;
+      radiiInput = { tl: n, tr: n, br: n, bl: n };
     }
-
-    const factor = Math.min(
-      w / (tl + tr) || Infinity,
-      h / (tr + br) || Infinity,
-      w / (br + bl) || Infinity,
-      h / (bl + tl) || Infinity
-    );
-
-    if (factor < 1) {
-      tl *= factor; tr *= factor; br *= factor; bl *= factor;
-    }
-
-    // Generate absolute path based on radius bounds
-    const pathD = `M ${tl} 0 L ${w - tr} 0 A ${tr} ${tr} 0 0 1 ${w} ${tr} L ${w} ${h - br} A ${br} ${br} 0 0 1 ${w - br} ${h} L ${bl} ${h} A ${bl} ${bl} 0 0 1 0 ${h - bl} L 0 ${tl} A ${tl} ${tl} 0 0 1 ${tl} 0 Z`;
+    const r = normalizeRadiiXY(radiiInput);
+    clampRadiiXY(r, w, h);
+    const pathD = buildEllipticalPath(w, h, r);
 
     const svg = `
       <svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
@@ -2031,7 +2205,11 @@ export function collectTextParts(node, parentStyle, scale) {
       const segments = Array.isArray(wsProcessed)
         ? wsProcessed
         : [{ text: wsProcessed }];
-      const isCollapsed = !Array.isArray(wsProcessed);
+      // `pre`, `pre-wrap`, and `break-spaces` preserve significant whitespace
+      // — including leading runs that processWhitespace would otherwise return
+      // as a plain string (when no newline forces array form). Only the truly
+      // collapsing modes (`normal`, `nowrap`) should trim leading/trailing.
+      const isCollapsed = ws !== 'pre' && ws !== 'pre-wrap' && ws !== 'break-spaces' && ws !== 'pre-line';
 
       segments.forEach((seg, segIdx) => {
         if (seg.breakLine) {
