@@ -1726,8 +1726,17 @@ function prepareRenderItem(
         }
       }
       const hasExplicitBreaks = textParts.some((p) => p.options?.breakLine);
+      // Subtract padding/border from the rect before comparing to line-height
+      // so a 6px-padded pill is still recognized as single-line.
+      const padTop = parseFloat(style.paddingTop) || 0;
+      const padBottom = parseFloat(style.paddingBottom) || 0;
+      const borderTop = parseFloat(style.borderTopWidth) || 0;
+      const borderBottom = parseFloat(style.borderBottomWidth) || 0;
+      const contentHeightPx = heightPx - padTop - padBottom - borderTop - borderBottom;
       const isSingleLine =
-        !hasExplicitBreaks && lineHeightPx > 0 && heightPx <= lineHeightPx * 1.5;
+        !hasExplicitBreaks &&
+        lineHeightPx > 0 &&
+        contentHeightPx <= lineHeightPx * 1.5;
 
       textPayload = {
         text: textParts,
