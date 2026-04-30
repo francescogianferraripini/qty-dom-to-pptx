@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>per-corner-radius</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #ffffff; }
+  #target {
+    width: 960px;
+    height: 540px;
+    background: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  /* Asymmetric per-corner radii: tight top-left/bottom-right, generous
+     top-right/bottom-left. roundRect can't represent this; needs a
+     custom-geometry SVG. Phase 3.3 territory. */
+  .leaf {
+    width: 320px;
+    height: 220px;
+    background: #c41e3a;
+    border-radius: 8px 64px 8px 64px;
+  }
+</style>
+</head>
+<body>
+  <div id="target">
+    <div class="leaf"></div>
+  </div>
+</body>
+</html>

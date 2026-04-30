@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>outline-stroke</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #ffffff; }
+  #target {
+    width: 960px;
+    height: 540px;
+    background: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  /* CSS outline with offset — a focus-ring style. Today the engine doesn't
+     read outline-* and the ring drops silently. Border is read normally so
+     the card itself still shows. */
+  .ring {
+    width: 280px;
+    height: 180px;
+    background: #ffffff;
+    border: 1px solid #d8d8d8;
+    outline: 4px solid #c41e3a;
+    outline-offset: 8px;
+    border-radius: 6px;
+  }
+</style>
+</head>
+<body>
+  <div id="target">
+    <div class="ring"></div>
+  </div>
+</body>
+</html>

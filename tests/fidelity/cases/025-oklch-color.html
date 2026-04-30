@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>oklch-color</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #ffffff; }
+  #target {
+    width: 960px;
+    height: 540px;
+    background: #ffffff;
+    position: relative;
+  }
+  /* Wide-gamut color functions parsed via the hidden canvas → sRGB clip in
+     parseColor (utils.js:400-407). The clip is intentional today; this case
+     asserts that the fallback isn't black (parseColor's failure branch) and
+     the round-tripped sRGB color is close enough to the browser's render to
+     stay under the color-delta budget. */
+  .swatch {
+    position: absolute;
+    top: 170px;
+    width: 240px;
+    height: 200px;
+    border-radius: 12px;
+  }
+  .a { left: 240px; background: oklch(0.62 0.22 29); }
+  .b { left: 520px; background: oklch(0.55 0.18 250); }
+</style>
+</head>
+<body>
+  <div id="target">
+    <div class="swatch a"></div>
+    <div class="swatch b"></div>
+  </div>
+</body>
+</html>

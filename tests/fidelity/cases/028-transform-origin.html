@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>transform-origin</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #ffffff; }
+  #target {
+    width: 960px;
+    height: 540px;
+    background: #ffffff;
+    position: relative;
+  }
+  /* Two identically-styled boxes rotated by the same angle but with
+     different transform-origins. PPTX rotates around the shape center, and
+     the engine doesn't yet compensate for non-center origins (Phase 3.2),
+     so the corner-pivot card should land at a noticeably different position
+     than the source. Small angle keeps the visual delta bounded. */
+  .pivot {
+    position: absolute;
+    width: 200px;
+    height: 140px;
+    background: #c41e3a;
+    border-radius: 6px;
+    transform: rotate(12deg);
+  }
+  .center { left: 220px; top: 200px; transform-origin: 50% 50%; }
+  .corner { left: 560px; top: 200px; transform-origin: 0 0; }
+</style>
+</head>
+<body>
+  <div id="target">
+    <div class="pivot center"></div>
+    <div class="pivot corner"></div>
+  </div>
+</body>
+</html>

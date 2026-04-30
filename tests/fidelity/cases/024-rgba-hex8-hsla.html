@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>rgba-hex8-hsla</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #ffffff; }
+  #target {
+    width: 960px;
+    height: 540px;
+    background: #ffffff;
+    position: relative;
+  }
+  /* Three overlapping translucent disks exercising the three alpha-color
+     syntaxes parseColor accepts: rgba(), 8-digit hex, hsla(). All should
+     pass cleanly today; this case is a regression guard against any future
+     change to parseColor. */
+  .blob {
+    position: absolute;
+    width: 280px;
+    height: 280px;
+    border-radius: 50%;
+    top: 130px;
+  }
+  .one  { left: 220px; background: rgba(196, 30, 58, 0.6); }
+  .two  { left: 360px; background: #1f7a4dcc; }
+  .three { left: 500px; background: hsla(220, 70%, 45%, 0.55); }
+</style>
+</head>
+<body>
+  <div id="target">
+    <div class="blob one"></div>
+    <div class="blob two"></div>
+    <div class="blob three"></div>
+  </div>
+</body>
+</html>

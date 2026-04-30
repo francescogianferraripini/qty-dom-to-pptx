@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>transform-translate</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #ffffff; }
+  #target {
+    width: 960px;
+    height: 540px;
+    background: #ffffff;
+    position: relative;
+  }
+  /* getBoundingClientRect already accounts for a self-applied `translate`
+     (browser does the math), so position should round-trip correctly. The
+     case isolates translate from any rotation/scale to confirm the basic
+     post-transform rect read works. Reference card (no transform) sits to
+     the left; the translated card should land 60/40 px down-right of its
+     pre-transform position. */
+  .anchor, .moved {
+    position: absolute;
+    width: 200px;
+    height: 140px;
+    border-radius: 8px;
+  }
+  .anchor {
+    left: 200px;
+    top: 200px;
+    background: #d8d4ca;
+  }
+  .moved {
+    left: 560px;
+    top: 200px;
+    background: #c41e3a;
+    transform: translate(60px, 40px);
+  }
+</style>
+</head>
+<body>
+  <div id="target">
+    <div class="anchor"></div>
+    <div class="moved"></div>
+  </div>
+</body>
+</html>

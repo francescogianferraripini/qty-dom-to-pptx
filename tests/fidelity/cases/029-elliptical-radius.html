@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>elliptical-radius</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #ffffff; }
+  #target {
+    width: 960px;
+    height: 540px;
+    background: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  /* Elliptical corners (`rx / ry` form). PPTX's prstGeom: roundRect supports
+     only a single uniform radius, so the engine should either parse the
+     larger axis or route through a custom-geometry SVG. Today it picks one
+     value and the corners look circular instead of stretched. Phase 3.3. */
+  .pill {
+    width: 480px;
+    height: 200px;
+    background: #1f7a4d;
+    border-radius: 80px / 24px;
+  }
+</style>
+</head>
+<body>
+  <div id="target">
+    <div class="pill"></div>
+  </div>
+</body>
+</html>

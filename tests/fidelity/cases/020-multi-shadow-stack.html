@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>multi-shadow-stack</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #ffffff; }
+  #target {
+    width: 960px;
+    height: 540px;
+    background: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  /* Three stacked box-shadows: a tight key-light, a softer mid, and a wide
+     ambient. getVisibleShadow returns after the first non-transparent layer,
+     so today only the tight key renders — a bounded but clearly visible
+     under-shadow defect this case exists to flag. */
+  .card {
+    width: 320px;
+    height: 200px;
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow:
+      0 2px 4px rgba(0, 0, 0, 0.18),
+      0 8px 16px rgba(0, 0, 0, 0.14),
+      0 24px 48px rgba(0, 0, 0, 0.10);
+  }
+</style>
+</head>
+<body>
+  <div id="target">
+    <div class="card"></div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>transform-scale-self</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #ffffff; }
+  #target {
+    width: 960px;
+    height: 540px;
+    background: #ffffff;
+    position: relative;
+  }
+  /* A scale on the element itself (not an ancestor): rect.* is post-scale,
+     so the rendered card should be 80% the size of the reference. Phase 1.1
+     re-validation already covered the ancestor case (010); this is the
+     element-self counterpart and a regression guard for `cumulative` on
+     the leaf node. Plain blocks (no text) keep the test focused on the
+     rect read — text vertical-centering is exercised elsewhere. */
+  .card {
+    position: absolute;
+    width: 240px;
+    height: 180px;
+    border-radius: 8px;
+    top: 180px;
+  }
+  .ref {
+    left: 180px;
+    background: #1f7a4d;
+  }
+  .small {
+    left: 540px;
+    background: #c41e3a;
+    transform: scale(0.8);
+  }
+</style>
+</head>
+<body>
+  <div id="target">
+    <div class="card ref"></div>
+    <div class="card small"></div>
+  </div>
+</body>
+</html>
