@@ -1587,6 +1587,29 @@ function prepareRenderItem(
       ) {
         return;
       }
+
+      // Block-level inline children (e.g. `<span style="display:block">`) need
+      // their own line. The browser breaks before and after them; PPTX rich
+      // text doesn't honor display so we synthesize the breaks here.
+      const isBlockChild =
+        child.nodeType === 1 &&
+        (nodeStyle.display === 'block' ||
+          nodeStyle.display === 'list-item' ||
+          nodeStyle.display === 'flex' ||
+          nodeStyle.display === 'grid' ||
+          nodeStyle.display === 'flow-root' ||
+          nodeStyle.display.startsWith('table'));
+      if (isBlockChild && textParts.length > 0) {
+        const last = textParts[textParts.length - 1];
+        if (!last.options?.breakLine) {
+          if (last.text && typeof last.text === 'string') {
+            last.text = last.text.trimEnd();
+          }
+          textParts.push({ text: '', options: { breakLine: true } });
+          trimNextLeading = true;
+        }
+      }
+
       const wsProcessed = processWhitespace(rawTextVal, nodeStyle.whiteSpace);
       // processWhitespace returns either a string (collapsed modes) or an
       // array of {text}/{breakLine} segments for `pre*` modes that contain
@@ -1647,7 +1670,22 @@ function prepareRenderItem(
           });
         }
       });
+
+      if (isBlockChild) {
+        textParts.push({ text: '', options: { breakLine: true } });
+        trimNextLeading = true;
+      }
     });
+
+    // Drop trailing empty breakLine sentinels — they'd render as a blank line
+    // at the end of the shape (especially when the last child was block).
+    while (
+      textParts.length > 0 &&
+      textParts[textParts.length - 1].options?.breakLine &&
+      textParts[textParts.length - 1].text === ''
+    ) {
+      textParts.pop();
+    }
 
     if (textParts.length > 0) {
       const { align, valign, intentionalSize, lineHeightVcenter } =
